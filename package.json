@@ -1,0 +1,30 @@
+{
+  "name": "website-kelas-X-TKJ",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "npm --prefix frontend run dev",
+    "dev:lan": "npm --prefix frontend run dev:lan",
+    "backend:lan": "powershell.exe -ExecutionPolicy Bypass -File scripts/start-php.ps1",
+    "dev:all": "powershell.exe -ExecutionPolicy Bypass -File scripts/start-all.ps1",
+    "host": "powershell.exe -ExecutionPolicy Bypass -File scripts/start-all.ps1",
+    "build:frontend": "npm --prefix frontend run build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "multer": "^2.3.0",
+    "sqlite3": "^6.0.1"
+  },
+  "devDependencies": {
+    "jest": "^30.5.1",
+    "supertest": "^7.2.2"
+  }
+}

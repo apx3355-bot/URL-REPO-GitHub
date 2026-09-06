@@ -1,0 +1,11 @@
+name: website-kelas-x-tkj
+metadata:
+  template: website-kelas-x-tkj@0.0.1-beta
+services:
+  web:
+    project: .
+    language: js
+    host: appservice
+infra:
+  provider: bicep
+  path: infra

@@ -1,0 +1,9 @@
+node_modules
+frontend/node_modules
+npm-debug.log
+.git
+.gitignore
+.vscode
+.DS_Store
+storage/uploads
+**/.DS_Store

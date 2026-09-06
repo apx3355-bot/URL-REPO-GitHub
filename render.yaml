@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: kelas-x-tkj
+    env: node
+    plan: free
+    buildCommand: npm install && npm --prefix frontend install && npm --prefix frontend run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DB_PATH
+        value: /tmp/database.db
+      - key: UPLOAD_PATH
+        value: /tmp/uploads
+      - key: SESSION_SECRET
+        value: YPK_CLASS_SECRET_2026

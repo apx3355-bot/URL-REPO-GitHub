@@ -1,0 +1,15 @@
+node_modules/
+frontend/node_modules/
+frontend/dist/
+dist/
+.env
+.env.*
+.DS_Store
+Thumbs.db
+storage/uploads/
+database.db
+database.db-shm
+database.db-wal
+npm-debug.log*
+logs/
+*.log
