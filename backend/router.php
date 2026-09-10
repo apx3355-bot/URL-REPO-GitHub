@@ -15,7 +15,19 @@ if (str_starts_with($requestPath, '/uploads/')) {
     $candidates[] = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . $relativePath;
     foreach (array_values(array_unique($candidates)) as $file) {
         if (is_file($file)) {
-            $mime = mime_content_type($file) ?: 'application/octet-stream';
+            $mime = 'application/octet-stream';
+            if (function_exists('mime_content_type')) {
+                $mime = mime_content_type($file) ?: $mime;
+            } elseif (class_exists('finfo')) {
+                $fi = new finfo(FILEINFO_MIME_TYPE);
+                $mime = $fi->file($file) ?: $mime;
+            } else {
+                $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+                $mimeMap = ['jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png',
+                    'webp' => 'image/webp', 'gif' => 'image/gif', 'svg' => 'image/svg+xml',
+                    'pdf' => 'application/pdf', 'mp4' => 'video/mp4'];
+                $mime = $mimeMap[$ext] ?? 'application/octet-stream';
+            }
             header('Content-Type: ' . $mime);
             readfile($file);
             return true;
