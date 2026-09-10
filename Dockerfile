@@ -22,14 +22,17 @@ COPY --from=build /app/server.js ./server.js
 COPY --from=build /app/auth.js ./auth.js
 COPY --from=build /app/database.js ./database.js
 COPY --from=build /app/storage ./storage
-COPY --from=build /app/database.db ./database.db
+COPY --from=build /app/backups ./backups
+# database.db sengaja TIDAK di-copy (gitignored/ephemeral).
+# Database dipulihkan otomatis dari backups/ saat startup (lihat database.js).
 
 ENV NODE_ENV=production \
     PORT=10000 \
-    DB_PATH=/tmp/database.db \
-    UPLOAD_PATH=/tmp/uploads
+    DB_PATH=/data/database.db \
+    UPLOAD_PATH=/data/uploads \
+    BACKUP_PATH=/data/backups
 
-RUN mkdir -p /tmp/uploads && chmod -R 777 /tmp
+RUN mkdir -p /data/uploads /data/backups && chmod -R 777 /data
 
 EXPOSE 10000
 

@@ -8,16 +8,18 @@ const db = require("./database");
 const router = express.Router();
 const MAX_MEMBER_COUNT = 30;
 const UPLOAD_STORAGE_LIMIT = 5 * 1024 * 1024 * 1024;
-const uploadStorageRoot = path.join(__dirname, "storage", "uploads");
+const uploadStorageRoot = process.env.UPLOAD_PATH ? process.env.UPLOAD_PATH : path.join(__dirname, "storage", "uploads");
 const profileUploadDirectory = path.join(uploadStorageRoot, "profiles");
 const galleryUploadDirectory = path.join(uploadStorageRoot, "gallery");
 
 function ensureUploadDirectories() {
     const directories = [
-        path.join(__dirname, "storage"),
         uploadStorageRoot,
         profileUploadDirectory,
         galleryUploadDirectory,
+        path.join(__dirname, "storage", "uploads"),
+        path.join(__dirname, "storage", "uploads", "profiles"),
+        path.join(__dirname, "storage", "uploads", "gallery"),
         path.join(__dirname, "public", "uploads"),
         path.join(__dirname, "public", "uploads", "profiles"),
         path.join(__dirname, "public", "uploads", "gallery")
@@ -50,6 +52,8 @@ function getUploadStorageUsage() {
     }
 
     walk(uploadStorageRoot);
+    walk(path.join(__dirname, "storage", "uploads"));
+    walk(path.join(__dirname, "public", "uploads"));
     return totalBytes;
 }
 
@@ -74,6 +78,8 @@ function deleteStoredUpload(fileUrl) {
     const relativePath = fileUrl.replace(/^\//, "").replace(/^uploads\//, "");
     const candidates = [
         path.join(uploadStorageRoot, relativePath),
+        path.join(__dirname, "storage", "uploads", relativePath),
+        path.join(__dirname, "storage", relativePath),
         path.join(__dirname, "public", relativePath),
         path.join(__dirname, "public", "uploads", relativePath)
     ];
@@ -749,7 +755,7 @@ router.delete("/announcements/:id", requireRole("developer", "wali_kelas"), (req
             return res.status(500).json({ success: false, message: "Pengumuman gagal dihapus" });
         }
         if (announcement.image_url) {
-            fs.unlink(path.join(__dirname, "public", announcement.image_url.replace(/^\//, "")), () => {});
+            deleteStoredUpload(announcement.image_url);
         }
         res.json({ success: true, message: "Pengumuman berhasil dihapus" });
         });
@@ -941,10 +947,10 @@ router.delete("/developer/members/:id", requireRole("developer"), (req, res) => 
                         }
 
                         if (member.photo_url) {
-                            fs.unlink(path.join(__dirname, "public", member.photo_url.replace(/^\//, "")), () => {});
+                            deleteStoredUpload(member.photo_url);
                         }
                         photos.forEach((photo) => {
-                            fs.unlink(path.join(__dirname, "public", photo.photo_url.replace(/^\//, "")), () => {});
+                            if (photo?.photo_url) deleteStoredUpload(photo.photo_url);
                         });
                         res.json({ success: true, message: "Akun berhasil dihapus" });
                     });

@@ -7,15 +7,112 @@ header('Access-Control-Allow-Credentials: true');
 header('Access-Control-Allow-Headers: Content-Type');
 header('Access-Control-Allow-Methods: GET, POST, PUT, OPTIONS');
 
+function resolveUploadRoot(): string {
+    $env = getenv('UPLOAD_PATH');
+    if (is_string($env) && trim($env) !== '') return rtrim(trim($env), DIRECTORY_SEPARATOR);
+    return dirname(__DIR__) . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . 'uploads';
+}
+
 const UPLOAD_STORAGE_LIMIT = 5 * 1024 * 1024 * 1024;
 const UPLOAD_STORAGE_ROOT = __DIR__ . DIRECTORY_SEPARATOR . '..' . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . 'uploads';
+
+function resolveDatabasePath(): string {
+    $env = getenv('DB_PATH');
+    if (is_string($env) && trim($env) !== '') return trim($env);
+    return dirname(__DIR__) . DIRECTORY_SEPARATOR . 'database.db';
+}
+
+function resolveBackupDir(): string {
+    $env = getenv('BACKUP_PATH');
+    if (is_string($env) && trim($env) !== '') return trim($env);
+    $dbEnv = getenv('DB_PATH');
+    if (is_string($dbEnv) && trim($dbEnv) !== '') return dirname(trim($dbEnv)) . DIRECTORY_SEPARATOR . 'backups';
+    return dirname(__DIR__) . DIRECTORY_SEPARATOR . 'backups';
+}
+
+function backupUsersCount(string $file): int {
+    if (!is_file($file) || filesize($file) === 0) return 0;
+    try {
+        $probe = new PDO('sqlite:' . $file, null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+        $table = $probe->query("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'users'")->fetch(PDO::FETCH_ASSOC);
+        if (!$table) return 0;
+        $count = $probe->query('SELECT COUNT(*) AS c FROM users')->fetch(PDO::FETCH_ASSOC);
+        return (int)($count['c'] ?? 0);
+    } catch (Throwable $error) {
+        return 0;
+    }
+}
+
+function createPhpBackup(string $databasePath, string $backupDir, string $reason = 'startup'): ?string {
+    try {
+        if (!is_dir($backupDir) && !@mkdir($backupDir, 0775, true)) return null;
+        if (!is_file($databasePath) || backupUsersCount($databasePath) <= 0) return null;
+        $stamp = date('Ymd-His');
+        $safe = preg_replace('/[^a-z0-9-_]+/i', '', $reason);
+        $target = $backupDir . DIRECTORY_SEPARATOR . "database-{$stamp}" . ($safe !== '' ? "-{$safe}" : '') . '.db';
+        if (!@copy($databasePath, $target)) return null;
+        $entries = glob($backupDir . DIRECTORY_SEPARATOR . '*.db') ?: [];
+        usort($entries, fn($a, $b) => filemtime($b) <=> filemtime($a));
+        foreach (array_slice($entries, 20) as $old) {
+            @unlink($old);
+        }
+        return $target;
+    } catch (Throwable $error) {
+        return null;
+    }
+}
+
+function restorePhpDatabaseIfNeeded(string $databasePath, string $backupDir): void {
+    if (backupUsersCount($databasePath) > 0) return;
+    $candidates = glob($backupDir . DIRECTORY_SEPARATOR . '*.db') ?: [];
+    // Selalu lirik juga backups/ di repo agar backup 12 anggota ikut dipakai
+    // walau BACKUP_PATH menunjuk ke /data/backups.
+    $repoBackupDir = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'backups';
+    if (realpath($repoBackupDir) !== realpath($backupDir)) {
+        $repoBackups = glob($repoBackupDir . DIRECTORY_SEPARATOR . '*.db') ?: [];
+        foreach ($repoBackups as $file) $candidates[] = $file;
+    }
+    $rootDbs = glob(dirname(__DIR__) . DIRECTORY_SEPARATOR . '*.db') ?: [];
+    foreach ($rootDbs as $file) {
+        if (realpath($file) !== realpath($databasePath)) $candidates[] = $file;
+    }
+    $candidates = array_values(array_unique($candidates));
+    usort($candidates, fn($a, $b) => filemtime($b) <=> filemtime($a));
+    $best = null;
+    $bestCount = 0;
+    foreach ($candidates as $file) {
+        $count = backupUsersCount($file);
+        if ($count > $bestCount) {
+            $bestCount = $count;
+            $best = $file;
+        }
+    }
+    if ($best !== null && $bestCount > 0) {
+        @mkdir(dirname($databasePath), 0775, true);
+        @copy($best, $databasePath);
+    }
+}
+
+$databasePath = resolveDatabasePath();
+$backupDirectory = resolveBackupDir();
+@mkdir(dirname($databasePath), 0775, true);
+@mkdir($backupDirectory, 0775, true);
+restorePhpDatabaseIfNeeded($databasePath, $backupDirectory);
+// Backup startup dibatasi max 1x per jam agar tiap request tidak menyalin DB.
+$throttleFile = $backupDirectory . DIRECTORY_SEPARATOR . '.last-startup-backup';
+$lastBackup = is_file($throttleFile) ? (int)@filemtime($throttleFile) : 0;
+if (time() - $lastBackup > 3600) {
+    if (createPhpBackup($databasePath, $backupDirectory, 'startup') !== null) {
+        @touch($throttleFile);
+    }
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(204);
     exit;
 }
 
-$db = new PDO('sqlite:' . dirname(__DIR__) . DIRECTORY_SEPARATOR . 'database.db');
+$db = new PDO('sqlite:' . $databasePath);
 $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $db->exec('PRAGMA busy_timeout = 5000');
 $db->exec('PRAGMA journal_mode = WAL');
@@ -125,18 +222,25 @@ function requestText(string $key): string {
 }
 
 function uploadStorageBytes(): int {
-    if (!is_dir(UPLOAD_STORAGE_ROOT)) return 0;
+    $roots = array_values(array_unique(array_filter([
+        resolveUploadRoot(),
+        UPLOAD_STORAGE_ROOT,
+        dirname(__DIR__) . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'uploads',
+    ], fn($root) => is_string($root) && $root !== '')));
     $bytes = 0;
-    $entries = @scandir(UPLOAD_STORAGE_ROOT);
-    if ($entries === false) return 0;
-    foreach ($entries as $entry) {
-        if ($entry === '.' || $entry === '..') continue;
-        $path = UPLOAD_STORAGE_ROOT . DIRECTORY_SEPARATOR . $entry;
-        if (is_file($path)) {
-            $size = @filesize($path);
-            if ($size !== false) $bytes += $size;
-        } elseif (is_dir($path)) {
-            $bytes += uploadDirectoryBytes($path);
+    foreach ($roots as $root) {
+        if (!is_dir($root)) continue;
+        $entries = @scandir($root);
+        if ($entries === false) continue;
+        foreach ($entries as $entry) {
+            if ($entry === '.' || $entry === '..') continue;
+            $path = $root . DIRECTORY_SEPARATOR . $entry;
+            if (is_file($path)) {
+                $size = @filesize($path);
+                if ($size !== false) $bytes += $size;
+            } elseif (is_dir($path)) {
+                $bytes += uploadDirectoryBytes($path);
+            }
         }
     }
     return $bytes;
@@ -195,11 +299,33 @@ function uploadImage(string $field, string $directory, string $prefix, int $maxB
 
 function removePublicFile(?string $url): void {
     if (!$url) return;
-    $path = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . ltrim(str_replace('/', DIRECTORY_SEPARATOR, $url), DIRECTORY_SEPARATOR);
-    if (is_file($path)) unlink($path);
+    $relative = ltrim(str_replace('/', DIRECTORY_SEPARATOR, $url), DIRECTORY_SEPARATOR);
+    // URL berbentuk /uploads/... -> hapus dari UPLOAD_PATH, public/uploads DAN storage/uploads
+    // agar file tidak yatim di salah satu direktori (Node pakai storage, PHP pakai public, prod pakai /data).
+    $relativeUploads = preg_replace('#^uploads' . preg_quote(DIRECTORY_SEPARATOR, '#') . '#', '', $relative);
+    $uploadRoot = resolveUploadRoot();
+    $candidates = [
+        $uploadRoot . DIRECTORY_SEPARATOR . $relativeUploads,
+        dirname(__DIR__) . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . $relative,
+        dirname(__DIR__) . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . $relative,
+        dirname(__DIR__) . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . $relativeUploads,
+        dirname(__DIR__) . DIRECTORY_SEPARATOR . 'storage' . DIRECTORY_SEPARATOR . 'uploads' . DIRECTORY_SEPARATOR . $relativeUploads,
+    ];
+    foreach (array_unique($candidates) as $path) {
+        if (is_file($path)) @unlink($path);
+    }
 }
 
-$route = trim((string)($_GET['route'] ?? ''), '/');
+function normalizeMembersAlias(string $route): string {
+    // Frontend memanggil developer/members, backend PHP memakai admin/members.
+    // Samakan keduanya agar daftar anggota tidak 404 dan terlihat "hilang".
+    if ($route === 'developer/members' || str_starts_with($route, 'developer/members/')) {
+        return 'admin' . substr($route, strlen('developer'));
+    }
+    return $route;
+}
+
+$route = normalizeMembersAlias(trim((string)($_GET['route'] ?? ''), '/'));
 $method = $_SERVER['REQUEST_METHOD'];
 
 try {
@@ -312,7 +438,7 @@ try {
 
     if ($route === 'profile/photo' && $method === 'POST') {
         $current = requireLogin();
-        $filename = uploadImage('foto', dirname(__DIR__) . '/public/uploads/profiles', 'profile-' . $current['id'], 5 * 1024 * 1024);
+        $filename = uploadImage('foto', resolveUploadRoot() . DIRECTORY_SEPARATOR . 'profiles', 'profile-' . $current['id'], 5 * 1024 * 1024);
         if (!$filename) respond(['success' => false, 'message' => 'Foto wajib dipilih'], 400);
         $old = profile($db, (int)$current['id']);
         ensureProfile($db, (int)$current['id'], $current['nama']);
@@ -337,7 +463,7 @@ try {
         $duration = ($data['duration'] ?? '') === 'permanent' ? null : (int)($data['duration'] ?? 0);
         if (!$title || !$content || ($duration !== null && !in_array($duration, [1, 3, 7, 30], true))) respond(['success' => false, 'message' => 'Judul dan isi pengumuman wajib diisi'], 400);
         $expires = $duration === null ? null : date('Y-m-d H:i:s', time() + $duration * 86400);
-        $filename = $isMultipart ? uploadImage('poster', dirname(__DIR__) . '/public/uploads/gallery', 'announcement', 8 * 1024 * 1024) : null;
+        $filename = $isMultipart ? uploadImage('poster', resolveUploadRoot() . DIRECTORY_SEPARATOR . 'gallery', 'announcement', 8 * 1024 * 1024) : null;
         $imageUrl = $filename ? '/uploads/gallery/' . $filename : null;
         $stmt = $db->prepare('INSERT INTO announcements (title, content, image_url, expires_at) VALUES (?, ?, ?, ?)');
         $stmt->execute([$title, $content, $imageUrl, $expires]);
@@ -432,7 +558,7 @@ try {
         $current = requireRole(['developer', 'wali_kelas']);
         $title = requestText('title');
         $description = requestText('description');
-        $filename = uploadImage('foto', dirname(__DIR__) . '/public/uploads/gallery', 'gallery', 8 * 1024 * 1024);
+        $filename = uploadImage('foto', resolveUploadRoot() . DIRECTORY_SEPARATOR . 'gallery', 'gallery', 8 * 1024 * 1024);
         if (!$title || !$filename) respond(['success' => false, 'message' => 'Judul dan foto wajib diisi'], 400);
         $url = '/uploads/gallery/' . $filename;
         $stmt = $db->prepare('INSERT INTO class_gallery (title, description, photo_url, uploaded_by) VALUES (?, ?, ?, ?)');
@@ -515,7 +641,7 @@ try {
         $check->execute([$memberId]);
         $member = $check->fetch(PDO::FETCH_ASSOC);
         if (!$member) respond(['success' => false, 'message' => 'Akun anggota tidak ditemukan'], 404);
-        $filename = uploadImage('foto', dirname(__DIR__) . '/public/uploads/profiles', 'profile-' . $memberId, 5 * 1024 * 1024);
+        $filename = uploadImage('foto', resolveUploadRoot() . DIRECTORY_SEPARATOR . 'profiles', 'profile-' . $memberId, 5 * 1024 * 1024);
         if (!$filename) respond(['success' => false, 'message' => 'Foto wajib dipilih'], 400);
         $url = '/uploads/profiles/' . $filename;
         $stmt = $db->prepare('UPDATE member_profiles SET photo_url = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?');

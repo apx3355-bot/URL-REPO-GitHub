@@ -52,7 +52,9 @@ app.get("/dashboard.html", (req, res, next) => {
     next();
 });
 
+app.use("/uploads", express.static(storageRoot));
 app.use("/uploads", express.static(path.join(__dirname, "storage", "uploads")));
+app.use("/uploads", express.static(path.join(__dirname, "public", "uploads")));
 
 const frontendDistPath = path.join(__dirname, "frontend", "dist");
 if (fs.existsSync(frontendDistPath)) {
@@ -108,7 +110,7 @@ app.get("/api/session", (req, res) => {
 // SERVER
 // ================================
 
-app.listen(PORT, "0.0.0.0", () => {
+const server = app.listen(PORT, "0.0.0.0", () => {
     console.log("");
     console.log("================================");
     console.log("🚀 WEBSITE KELAS X TKJ");
@@ -121,3 +123,27 @@ app.listen(PORT, "0.0.0.0", () => {
     console.log("🗄️ Database: Terhubung");
     console.log("================================");
 });
+
+let shuttingDown = false;
+function gracefulShutdown(signal) {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log(`\n🛑 Menerima ${signal}, mencadangkan database sebelum berhenti...`);
+    try {
+        if (typeof db.createDatabaseBackup === "function") {
+            db.createDatabaseBackup("shutdown");
+        }
+    } catch (error) {
+        console.error("Backup saat shutdown gagal:", error.message);
+    }
+    try {
+        db.close(() => process.exit(0));
+        setTimeout(() => process.exit(0), 3000).unref();
+    } catch (error) {
+        process.exit(0);
+    }
+}
+
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGUSR2", () => gracefulShutdown("SIGUSR2"));

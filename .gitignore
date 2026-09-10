@@ -10,6 +10,7 @@ storage/uploads/
 database.db
 database.db-shm
 database.db-wal
+backups/.last-startup-backup
 npm-debug.log*
 logs/
 *.log
