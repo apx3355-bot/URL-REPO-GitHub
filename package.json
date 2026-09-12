@@ -11,7 +11,7 @@
     "dev:all": "powershell.exe -ExecutionPolicy Bypass -File scripts/start-all.ps1",
     "host": "powershell.exe -ExecutionPolicy Bypass -File scripts/start-all.ps1",
     "build:frontend": "npm --prefix frontend run build",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest --runInBand --forceExit"
   },
   "keywords": [],
   "author": "",

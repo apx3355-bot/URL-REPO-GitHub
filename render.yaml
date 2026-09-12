@@ -1,20 +1,13 @@
 services:
   - type: web
     name: kelas-x-tkj
-    env: node
+    env: docker
     plan: free
-    buildCommand: npm install && npm --prefix frontend install && npm --prefix frontend run build
-    startCommand: npm start
-    # Persistent disk: /data bertahan saat restart/redeploy.
-    # Catatan: disk Render memerlukan plan berbayar. Selama masih free,
-    # data tetap aman lewat auto-backup di backups/ + restore otomatis saat startup.
     disk:
-      name: kelas-data
+      name: data-storage
       mountPath: /data
       sizeGB: 1
     envVars:
-      - key: NODE_ENV
-        value: production
       - key: PORT
         value: 10000
       - key: DB_PATH
@@ -23,5 +16,3 @@ services:
         value: /data/uploads
       - key: BACKUP_PATH
         value: /data/backups
-      - key: SESSION_SECRET
-        value: YPK_CLASS_SECRET_2026

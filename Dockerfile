@@ -1,39 +1,36 @@
-FROM node:20-alpine AS build
-WORKDIR /app
-
-COPY package*.json ./
+# Build Frontend
+FROM node:20-alpine AS frontend-builder
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
 RUN npm install
+COPY frontend/ ./
+RUN npm run build
 
-COPY frontend/package*.json ./frontend/
-RUN npm --prefix frontend install
+# PHP Runtime
+FROM php:8.2-cli-alpine
+WORKDIR /var/www/html
 
-COPY . .
-RUN npm --prefix frontend run build
+# Install SQLite & dependencies
+RUN apk add --no-cache sqlite-libs sqlite-dev \
+    && docker-php-ext-install pdo pdo_sqlite
 
-FROM node:20-alpine
-WORKDIR /app
+# Copy source
+COPY --from=frontend-builder /app/frontend/dist ./public
+COPY backend/ ./backend/
+COPY backups/ ./backups/
+COPY public/ ./public/
 
-COPY package*.json ./
-RUN npm install --omit=dev
-
-COPY --from=build /app/frontend/dist ./frontend/dist
-COPY --from=build /app/public ./public
-COPY --from=build /app/server.js ./server.js
-COPY --from=build /app/auth.js ./auth.js
-COPY --from=build /app/database.js ./database.js
-COPY --from=build /app/storage ./storage
-COPY --from=build /app/backups ./backups
-# database.db sengaja TIDAK di-copy (gitignored/ephemeral).
-# Database dipulihkan otomatis dari backups/ saat startup (lihat database.js).
-
-ENV NODE_ENV=production \
-    PORT=10000 \
+# Environment Variables
+ENV PORT=10000 \
     DB_PATH=/data/database.db \
     UPLOAD_PATH=/data/uploads \
     BACKUP_PATH=/data/backups
 
-RUN mkdir -p /data/uploads /data/backups && chmod -R 777 /data
+# Persist data directories
+RUN mkdir -p /data/uploads /data/backups /var/www/html/public/uploads \
+    && chmod -R 777 /data /var/www/html/public/uploads
 
 EXPOSE 10000
 
-CMD ["npm", "start"]
+# Start PHP built-in server with router
+CMD ["sh", "-c", "php -S 0.0.0.0:${PORT} -t public backend/router.php"]
