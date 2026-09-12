@@ -1,0 +1,4 @@
+{
+  "run": "bash start-replit.sh",
+  "language": "php8.2"
+}
