@@ -41,19 +41,35 @@ if (str_starts_with($requestPath, '/uploads/')) {
 
 // Normalisasi route API agar frontend /api/auth/* tetap jalan di PHP.
 // php -S tidak punya rewrite, jadi petakan path menjadi $_GET['route'].
-if (!isset($_GET['route']) || $_GET['route'] === '') {
+$isApi = str_starts_with($requestPath, '/api/') || str_starts_with($requestPath, '/auth/') || str_starts_with($requestPath, '/backend/api.php');
+if ($isApi) {
     $apiPath = $requestPath;
-    foreach (['/api/auth/', '/api/', '/auth/'] as $prefix) {
+    foreach (['/api/auth/', '/api/', '/auth/', '/backend/api.php'] as $prefix) {
         if (str_starts_with($apiPath, $prefix)) {
             $apiPath = substr($apiPath, strlen($prefix));
             break;
         }
     }
     $apiPath = trim($apiPath, '/');
-    // Hanya set untuk path API, biarkan router default untuk file statis lain.
-    if ($apiPath !== '' && !str_contains($apiPath, '.')) {
+    if ($apiPath !== '') {
         $_GET['route'] = $apiPath;
     }
+    require __DIR__ . DIRECTORY_SEPARATOR . 'api.php';
+    return;
 }
 
-require __DIR__ . DIRECTORY_SEPARATOR . 'api.php';
+// Static files: return false to let php -S serve them directly if file exists
+$publicFile = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . ltrim($requestPath, '/');
+if (is_file($publicFile)) {
+    return false;
+}
+
+// SPA fallback for frontend routes (e.g. /login, /dashboard)
+$indexFile = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'public' . DIRECTORY_SEPARATOR . 'index.html';
+if (is_file($indexFile)) {
+    header('Content-Type: text/html; charset=utf-8');
+    readfile($indexFile);
+    return true;
+}
+
+return false;

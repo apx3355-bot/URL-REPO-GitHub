@@ -19,12 +19,13 @@ COPY --from=frontend-builder /app/frontend/dist ./public
 COPY backend/ ./backend/
 COPY backups/ ./backups/
 COPY public/ ./public/
+COPY database.db ./database.db
 
 # Environment Variables
 ENV PORT=10000 \
-    DB_PATH=/data/database.db \
-    UPLOAD_PATH=/data/uploads \
-    BACKUP_PATH=/data/backups
+    DB_PATH=/var/www/html/database.db \
+    UPLOAD_PATH=/var/www/html/public/uploads \
+    BACKUP_PATH=/var/www/html/backups
 
 # Persist data directories
 RUN mkdir -p /data/uploads /data/backups /var/www/html/public/uploads \
