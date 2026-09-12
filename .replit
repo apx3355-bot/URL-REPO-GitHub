@@ -1,4 +1,1 @@
-{
-  "run": "bash start-replit.sh",
-  "language": "php8.2"
-}
+run = "bash start-replit.sh"
