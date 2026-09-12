@@ -8,6 +8,7 @@
     "dev": "npm --prefix frontend run dev",
     "dev:lan": "npm --prefix frontend run dev:lan",
     "backend:lan": "powershell.exe -ExecutionPolicy Bypass -File scripts/start-php.ps1",
+    "build": "npm --prefix frontend install && npm --prefix frontend run build && cp -r frontend/dist/* public/ 2>/dev/null || xcopy /E /I /Y frontend\\dist public",
     "dev:all": "powershell.exe -ExecutionPolicy Bypass -File scripts/start-all.ps1",
     "host": "powershell.exe -ExecutionPolicy Bypass -File scripts/start-all.ps1",
     "build:frontend": "npm --prefix frontend run build",
