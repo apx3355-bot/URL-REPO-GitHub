@@ -1,0 +1,38 @@
+import type { Metadata } from "next";
+import { classInfo } from "@/data/classInfo";
+import { classMembers as staticMembers } from "@/data/classMembers";
+import { prisma } from "@/lib/prisma";
+import AnggotaClient from "./AnggotaClient";
+import type { ClassMember } from "@/types";
+
+export const metadata: Metadata = {
+  title: "Anggota",
+  description: `Daftar anggota kelas ${classInfo.name} — ${classInfo.totalAnggota} siswa tahun ajaran ${classInfo.tahunAjaran}.`,
+};
+
+export const dynamic = "force-dynamic";
+
+// Ambil anggota dari database; fallback ke data statis jika DB kosong/gagal
+async function getMembers(): Promise<ClassMember[]> {
+  try {
+    const rows = await prisma.classMember.findMany({
+      orderBy: [{ position: { sort: "desc", nulls: "last" } }, { fullName: "asc" }],
+      take: 200,
+    });
+    if (rows.length === 0) return staticMembers;
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.fullName,
+      photo: r.photo,
+      position: r.position,
+      nisn: r.nisn ?? undefined,
+    }));
+  } catch {
+    return staticMembers;
+  }
+}
+
+export default async function AnggotaPage() {
+  const members = await getMembers();
+  return <AnggotaClient members={members} />;
+}

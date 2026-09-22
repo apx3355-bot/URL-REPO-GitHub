@@ -1,0 +1,61 @@
+import type { ClassStructure } from "@/types";
+
+export const classStructure: ClassStructure[] = [
+  {
+    id: 1,
+    name: "[Nama Wali Kelas]",
+    position: "Wali Kelas",
+    photo: null,
+    order: 1,
+    tier: "teacher",
+    description: "Guru pembimbing kelas X TKJ BK",
+  },
+  {
+    id: 2,
+    name: "[Nama Ketua]",
+    position: "Ketua Kelas",
+    photo: null,
+    order: 2,
+    tier: "leader",
+  },
+  {
+    id: 3,
+    name: "[Nama Wakil]",
+    position: "Wakil Ketua",
+    photo: null,
+    order: 3,
+    tier: "deputy",
+  },
+  {
+    id: 4,
+    name: "[Nama Sekretaris 1]",
+    position: "Sekretaris I",
+    photo: null,
+    order: 4,
+    tier: "secretary",
+  },
+  {
+    id: 5,
+    name: "[Nama Sekretaris 2]",
+    position: "Sekretaris II",
+    photo: null,
+    order: 5,
+    tier: "secretary",
+  },
+  {
+    id: 6,
+    name: "[Nama Bendahara 1]",
+    position: "Bendahara I",
+    photo: null,
+    order: 6,
+    tier: "treasurer",
+  },
+  {
+    id: 7,
+    name: "[Nama Bendahara 2]",
+    position: "Bendahara II",
+    photo: null,
+    order: 7,
+    tier: "treasurer",
+  },
+];

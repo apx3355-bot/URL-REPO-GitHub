@@ -1,0 +1,80 @@
+import crypto from "crypto";
+import fs from "fs/promises";
+import path from "path";
+
+// ================================
+// File upload security — Phase 5
+// - Validasi magic bytes (bukan cuma extension)
+// - Filename disanitasi + diganti nama acak
+// - Batas ukuran
+// ================================
+
+export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5 MB
+export const UPLOAD_DIR = path.join(process.cwd(), "public", "uploads", "gallery");
+
+const ALLOWED_TYPES: Record<string, { ext: string }> = {
+  "image/jpeg": { ext: "jpg" },
+  "image/png": { ext: "png" },
+  "image/webp": { ext: "webp" },
+};
+
+export function isAllowedMime(mime: string): boolean {
+  return mime in ALLOWED_TYPES;
+}
+
+/** Deteksi tipe file nyata dari magic bytes. */
+export function detectImageType(bytes: Uint8Array): string | null {
+  // JPEG: FF D8 FF
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+    return "image/jpeg";
+  }
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (
+    bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e &&
+    bytes[3] === 0x47 && bytes[4] === 0x0d && bytes[5] === 0x0a &&
+    bytes[6] === 0x1a && bytes[7] === 0x0a
+  ) {
+    return "image/png";
+  }
+  // WEBP: RIFF....WEBP
+  if (
+    bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 &&
+    bytes[3] === 0x46 && bytes[8] === 0x57 && bytes[9] === 0x45 &&
+    bytes[10] === 0x42 && bytes[11] === 0x50
+  ) {
+    return "image/webp";
+  }
+  return null;
+}
+
+/** Nama file aman: ekstensi dari MIME nyata, nama acak. */
+export function generateSafeFilename(mime: string): string {
+  const ext = ALLOWED_TYPES[mime]?.ext ?? "bin";
+  const random = crypto.randomBytes(12).toString("hex");
+  return `${Date.now()}-${random}.${ext}`;
+}
+
+export async function ensureUploadDir(): Promise<void> {
+  await fs.mkdir(UPLOAD_DIR, { recursive: true });
+}
+
+export async function saveUploadFile(
+  buffer: Buffer,
+  mime: string
+): Promise<{ filename: string; publicPath: string }> {
+  await ensureUploadDir();
+  const filename = generateSafeFilename(mime);
+  await fs.writeFile(path.join(UPLOAD_DIR, filename), buffer);
+  return { filename, publicPath: `/uploads/gallery/${filename}` };
+}
+
+export async function deleteUploadFile(publicPath: string): Promise<void> {
+  // Hanya hapus file di dalam direktori upload — cegah path traversal
+  const resolved = path.resolve(process.cwd(), "public", publicPath.replace(/^\//, ""));
+  if (!resolved.startsWith(path.resolve(UPLOAD_DIR))) return;
+  try {
+    await fs.unlink(resolved);
+  } catch {
+    // file sudah tidak ada — abaikan
+  }
+}

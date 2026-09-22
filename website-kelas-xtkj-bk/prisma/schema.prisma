@@ -1,0 +1,156 @@
+// Schema database — website kelas X TKJ BK (Phase 3 & 5)
+// SQLite lokal via Prisma. Enum tidak didukung SQLite → gunakan String + union type TS.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ===================================
+// AUTH & USERS
+// ===================================
+
+model User {
+  id           Int       @id @default(autoincrement())
+  username     String    @unique
+  passwordHash String
+  /// DEVELOPER | WALI_KELAS | ANGGOTA
+  role         String    @default("ANGGOTA")
+  isActive     Boolean   @default(true)
+  /// Naik setiap logout/security event → semua token lama otomatis invalid
+  tokenVersion Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  profile       Profile?
+  member        ClassMember?
+  announcements Announcement[]
+  activityLogs  ActivityLog[]
+  galleryItems  GalleryItem[]
+  galleryApproved GalleryItem[] @relation("ApprovedBy")
+  settingsUpdated Setting[] @relation("SettingUpdater")
+}
+
+model Profile {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName  String
+  nisn      String?
+  photo     String?
+  phone     String?
+  bio       String?
+  updatedAt DateTime @updatedAt
+}
+
+// ===================================
+// KELAS
+// ===================================
+
+/// Anggota kelas. Bisa terhubung ke akun user (userId) atau tidak.
+model ClassMember {
+  id        Int      @id @default(autoincrement())
+  fullName  String
+  nisn      String?
+  /// Jabatan pengurus, null = anggota biasa
+  position  String?
+  photo     String?
+  userId    Int?     @unique
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Announcement {
+  id        Int      @id @default(autoincrement())
+  title     String
+  content   String
+  /// DRAFT | PUBLISHED | ARCHIVED
+  status    String   @default("PUBLISHED")
+  authorId  Int
+  author    User     @relation(fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ClassStructure {
+  id          Int      @id @default(autoincrement())
+  name        String
+  position    String
+  /// teacher | leader | deputy | secretary | treasurer | section
+  tier        String
+  description String?
+  photo       String?
+  /// Urutan tampil
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Schedule {
+  id        Int      @id @default(autoincrement())
+  /// SENIN | SELASA | RABU | KAMIS | JUMAT | SABTU
+  day       String
+  /// Format "HH:MM"
+  startTime String
+  endTime   String
+  subject   String
+  teacher   String?
+  room      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ===================================
+// GALERI (Phase 5)
+// ===================================
+
+/// Item galeri. Upload murid → PENDING → approve/reject developer/wali kelas.
+/// Gambar disimpan sebagai file di public/uploads/gallery (bukan binary di DB).
+model GalleryItem {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  imagePath  String
+  title      String
+  description String?
+  /// PENDING | APPROVED | REJECTED
+  status     String   @default("PENDING")
+  approvedBy Int?
+  approver   User?    @relation("ApprovedBy", fields: [approvedBy], references: [id], onDelete: SetNull)
+  approvedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// ===================================
+// SETTINGS (Phase 6) — konfigurasi non-secret via dashboard developer
+// ===================================
+
+/// Key-value settings. Jangan simpan secret/API key di sini.
+model Setting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+  updatedBy Int?
+  updatedByUser User? @relation("SettingUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
+}
+
+// ===================================
+// ACTIVITY LOG
+// ===================================
+
+model ActivityLog {
+  id          Int      @id @default(autoincrement())
+  userId      Int?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action      String
+  description String
+  targetType  String?
+  targetId    Int?
+  createdAt   DateTime @default(now())
+}
