@@ -98,6 +98,7 @@ export interface SessionUser {
   username: string;
   role: Role;
   fullName: string;
+  photo: string | null;
 }
 
 /** Ambil user dari session cookie. null jika tidak login / session invalid. */
@@ -118,7 +119,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
         role: true,
         isActive: true,
         tokenVersion: true,
-        profile: { select: { fullName: true } },
+        profile: { select: { fullName: true, photo: true } },
       },
     });
     if (!user || !user.isActive) return null;
@@ -131,6 +132,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
       username: user.username,
       role: user.role,
       fullName: user.profile?.fullName ?? user.username,
+      photo: user.profile?.photo ?? null,
     };
   } catch {
     // Database error → perlakukan sebagai tidak login (tanpa bocorkan detail)

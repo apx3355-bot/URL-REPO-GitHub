@@ -4,12 +4,14 @@ import { prisma } from "@/lib/prisma";
 import { can, type PermissionAction } from "@/lib/roles";
 import {
   requirePermission,
+  requireUser,
   parseBody,
   handleApiError,
   logActivity,
   jsonError,
 } from "@/lib/api";
 import { deleteUploadFile } from "@/lib/upload";
+import { notifyUser } from "@/lib/notify";
 
 function parseId(raw: string): number | null {
   const id = Number(raw);
@@ -56,6 +58,21 @@ export async function PUT(
       targetId: id,
     });
 
+    // Notifikasi hasil moderasi ke pemilik foto (Phase 11)
+    if (existing.userId !== guard.user.id) {
+      await notifyUser({
+        userId: existing.userId,
+        type: "GALLERY",
+        message:
+          status === "APPROVED"
+            ? `Foto "${existing.title}" telah disetujui dan tampil di galeri`
+            : `Foto "${existing.title}" tidak disetujui moderator`,
+        link: "/dashboard/gallery",
+        targetType: "gallery",
+        targetId: id,
+      });
+    }
+
     return NextResponse.json({ item });
   } catch (error) {
     return handleApiError(error, "gallery:moderate");
@@ -67,7 +84,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const guard = await requirePermission("gallery", "delete");
+    // Delete gallery = developer (gallery:delete) hapus bebas,
+    // atau pemilik foto (gallery:upload) hapus miliknya sendiri.
+    // requirePermission("gallery","delete") menolak murid sebelum
+    // ownership check tercapai, jadi dipecah menjadi guard + policy di sini.
+    const guard = await requireUser();
     if (!guard.ok) return guard.response;
 
     const { id: rawId } = await params;
@@ -77,13 +98,21 @@ export async function DELETE(
     const existing = await prisma.galleryItem.findUnique({ where: { id } });
     if (!existing) return jsonError("Item galeri tidak ditemukan.", 404);
 
-    // Murid hanya boleh menghapus miliknya sendiri
-    if (!can(guard.user.role, "gallery", "moderate") && existing.userId !== guard.user.id) {
-      return jsonError("Anda hanya dapat menghapus foto milik Anda sendiri.", 403);
+    // Policy delete:
+    //   - DEVELOPER (gallery:delete)  -> hapus konten siapa pun
+    //   - ANGGOTA   (gallery:upload)  -> hanya foto miliknya sendiri
+    //   - WALI_KELAS (moderate saja)  -> tidak bisa delete (sesuai matrix permission)
+    const canDeleteAny = can(guard.user.role, "gallery", "delete");
+    const canDeleteOwn = can(guard.user.role, "gallery", "upload");
+    if (!canDeleteAny && !(canDeleteOwn && existing.userId === guard.user.id)) {
+      return jsonError("Anda tidak memiliki izin menghapus foto ini.", 403);
     }
 
     await prisma.galleryItem.delete({ where: { id } });
-    await deleteUploadFile(existing.imagePath);
+    // File lama (pola Phase 5) dihapus jika ada; data URL (serverless) tak berfile
+    if (!existing.imagePath.startsWith("data:")) {
+      await deleteUploadFile(existing.imagePath);
+    }
 
     await logActivity({
       userId: guard.user.id,

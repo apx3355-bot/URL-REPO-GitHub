@@ -9,6 +9,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://website-kelas-xtkj-bk.vercel.app"),
   title: {
     default: "X TKJ BK — Kelas Teknik Komputer & Jaringan",
     template: "%s | X TKJ BK",
@@ -16,6 +17,14 @@ export const metadata: Metadata = {
   description:
     "Website resmi kelas X TKJ BK — Teknik Komputer dan Jaringan. Informasi kelas, anggota, galeri kegiatan, dan struktur organisasi.",
   keywords: ["X TKJ BK", "TKJ", "SMK", "Teknik Komputer Jaringan"],
+  openGraph: {
+    type: "website",
+    locale: "id_ID",
+    siteName: "X TKJ BK",
+    title: "X TKJ BK — Kelas Teknik Komputer & Jaringan",
+    description:
+      "Website resmi kelas X TKJ BK — Teknik Komputer dan Jaringan. Informasi kelas, anggota, galeri kegiatan, dan struktur organisasi.",
+  },
 };
 
 // Cegah flash tema salah: set data-theme sebelum first paint.

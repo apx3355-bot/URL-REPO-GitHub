@@ -7,6 +7,7 @@ import {
   handleApiError,
   logActivity,
 } from "@/lib/api";
+import { notifyUsers } from "@/lib/notify";
 
 const DAYS = ["SENIN", "SELASA", "RABU", "KAMIS", "JUMAT", "SABTU"] as const;
 
@@ -68,6 +69,16 @@ export async function POST(request: Request) {
       userId: guard.user.id,
       action: "SCHEDULE_CREATE",
       description: `${guard.user.username} menambah jadwal ${schedule.day} ${schedule.startTime} — ${schedule.subject}`,
+      targetType: "schedule",
+      targetId: schedule.id,
+    });
+
+    // Phase 12: perubahan jadwal menotifikasi user aktif (best-effort, anti-spam)
+    await notifyUsers({
+      excludeUserId: guard.user.id,
+      type: "SCHEDULE",
+      message: `Jadwal baru: ${schedule.subject} (${schedule.day} ${schedule.startTime})`,
+      link: "/dashboard/schedules",
       targetType: "schedule",
       targetId: schedule.id,
     });

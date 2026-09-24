@@ -315,6 +315,26 @@ export default function Navbar() {
             padding: 0 2rem;
           }
         }
+
+        /* Ultra-small (<360px): padatkan navbar agar tanpa overflow horizontal */
+        @media (max-width: 359px) {
+          .navbar-inner {
+            padding: 0 1rem;
+            gap: 1rem;
+          }
+
+          .brand-text {
+            font-size: 0.8rem;
+          }
+
+          .navbar-actions {
+            gap: 0.375rem;
+          }
+
+          .btn-login {
+            padding: 0.375rem 0.625rem;
+          }
+        }
       `}</style>
     </header>
   );

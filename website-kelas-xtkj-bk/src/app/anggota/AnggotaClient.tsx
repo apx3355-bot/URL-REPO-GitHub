@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import MemberAvatar from "@/components/MemberAvatar";
+import AvatarDisplay from "@/components/AvatarDisplay";
 import PublicLayout from "@/components/PublicLayout";
 import { classInfo } from "@/data/classInfo";
 import type { ClassMember } from "@/types";
@@ -76,7 +76,7 @@ export default function AnggotaClient({ members: classMembers }: { members: Clas
             <div className="member-grid">
               {withPosition.map((member) => (
                 <div key={member.id} className="member-card">
-                  <MemberAvatar name={member.name} size="xl" />
+                  <AvatarDisplay name={member.name} photo={member.photo} size="xl" />
                   <div className="member-card-body">
                     <p className="member-card-name">{member.name}</p>
                     <p className="member-card-position">{member.position}</p>
@@ -95,7 +95,7 @@ export default function AnggotaClient({ members: classMembers }: { members: Clas
             <div className="member-grid-regular">
               {regular.map((member) => (
                 <div key={member.id} className="member-card-regular">
-                  <MemberAvatar name={member.name} size="md" />
+                  <AvatarDisplay name={member.name} photo={member.photo} size="md" />
                   <p className="member-card-regular-name">{member.name}</p>
                 </div>
               ))}

@@ -1,13 +1,15 @@
-// Schema database — website kelas X TKJ BK (Phase 3 & 5)
-// SQLite lokal via Prisma. Enum tidak didukung SQLite → gunakan String + union type TS.
+// Schema database — website kelas X TKJ BK (Phase 3 & 9)
+// PostgreSQL (Supabase) via Prisma. Enum string + union type TS.
+// Baseline migration: prisma/migrations/0_init (dialect postgresql).
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ===================================
@@ -15,24 +17,35 @@ datasource db {
 // ===================================
 
 model User {
-  id           Int       @id @default(autoincrement())
-  username     String    @unique
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
   passwordHash String
   /// DEVELOPER | WALI_KELAS | ANGGOTA
-  role         String    @default("ANGGOTA")
-  isActive     Boolean   @default(true)
+  role         String   @default("ANGGOTA")
+  isActive     Boolean  @default(true)
   /// Naik setiap logout/security event → semua token lama otomatis invalid
-  tokenVersion Int       @default(0)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  tokenVersion Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  profile       Profile?
-  member        ClassMember?
-  announcements Announcement[]
-  activityLogs  ActivityLog[]
-  galleryItems  GalleryItem[]
-  galleryApproved GalleryItem[] @relation("ApprovedBy")
-  settingsUpdated Setting[] @relation("SettingUpdater")
+  profile         Profile?
+  member          ClassMember?
+  announcements   Announcement[]
+  activityLogs    ActivityLog[]
+  galleryItems    GalleryItem[]
+  galleryApproved GalleryItem[]  @relation("ApprovedBy")
+  settingsUpdated Setting[]      @relation("SettingUpdater")
+  discussionPosts DiscussionPost[] @relation("DiscussionPosts")
+  discussionReplies DiscussionReply[] @relation("DiscussionReplies")
+  classEvents     ClassEvent[]   @relation("ClassEvents")
+  notifications   Notification[] @relation("Notifications")
+  materials       Material[]     @relation("Materials")
+  assignments     Assignment[]   @relation("Assignments")
+  submissions     Submission[]   @relation("Submissions")
+  gradedSubmissions Submission[] @relation("GradedSubmissions")
+
+  /// Index status akun — dipakai filter isActive di users API & hitungan kuota
+  @@index([isActive])
 }
 
 model Profile {
@@ -71,10 +84,15 @@ model Announcement {
   content   String
   /// DRAFT | PUBLISHED | ARCHIVED
   status    String   @default("PUBLISHED")
+  /// Pin di atas feed (Phase 11)
+  pinned    Boolean  @default(false)
   authorId  Int
   author    User     @relation(fields: [authorId], references: [id])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  /// Feed publik & dashboard selalu filter status → index komposit
+  @@index([status, createdAt(sort: Desc)])
 }
 
 model ClassStructure {
@@ -112,19 +130,22 @@ model Schedule {
 /// Item galeri. Upload murid → PENDING → approve/reject developer/wali kelas.
 /// Gambar disimpan sebagai file di public/uploads/gallery (bukan binary di DB).
 model GalleryItem {
-  id         Int      @id @default(autoincrement())
-  userId     Int
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  imagePath  String
-  title      String
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  imagePath   String
+  title       String
   description String?
   /// PENDING | APPROVED | REJECTED
-  status     String   @default("PENDING")
-  approvedBy Int?
-  approver   User?    @relation("ApprovedBy", fields: [approvedBy], references: [id], onDelete: SetNull)
-  approvedAt DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  status      String    @default("PENDING")
+  approvedBy  Int?
+  approver    User?     @relation("ApprovedBy", fields: [approvedBy], references: [id], onDelete: SetNull)
+  approvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  /// Galeri publik (APPROVED, urut terbaru) & antrian moderasi (PENDING)
+  @@index([status, createdAt(sort: Desc)])
 }
 
 // ===================================
@@ -133,11 +154,174 @@ model GalleryItem {
 
 /// Key-value settings. Jangan simpan secret/API key di sini.
 model Setting {
-  key       String   @id
-  value     String
+  key           String   @id
+  value         String
+  updatedAt     DateTime @updatedAt
+  updatedBy     Int?
+  updatedByUser User?    @relation("SettingUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
+}
+
+// ===================================
+// DISKUSI KELAS (Phase 11)
+// ===================================
+
+/// Postingan diskusi kelas. Semua role login boleh posting; hapus milik
+/// sendiri, moderasi konten orang lain lewat permission discussions:moderate.
+model DiscussionPost {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation("DiscussionPosts", fields: [userId], references: [id], onDelete: Cascade)
+  /// 1–2000 karakter, divalidasi zod
+  content   String
+  createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  updatedBy Int?
-  updatedByUser User? @relation("SettingUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
+  replies   DiscussionReply[]
+
+  @@index([createdAt(sort: Desc)])
+}
+
+/// Balasan pada postingan diskusi. Tidak bersarang (kedalaman 1) — sederhana.
+model DiscussionReply {
+  id        Int            @id @default(autoincrement())
+  postId    Int
+  post      DiscussionPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User           @relation("DiscussionReplies", fields: [userId], references: [id], onDelete: Cascade)
+  /// 1–1000 karakter, divalidasi zod
+  content   String
+  createdAt DateTime       @default(now())
+
+  @@index([postId, createdAt])
+}
+
+// ===================================
+// AGENDA / EVENT KELAS (Phase 11)
+// ===================================
+
+model ClassEvent {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  /// Tanggal pelaksanaan (tanggal; jam di startTime/endTime)
+  eventDate   DateTime
+  /// Format "HH:MM", opsional
+  startTime   String?
+  endTime     String?
+  /// Lokasi, opsional (mis. Lab Jaringan)
+  location    String?
+  createdById Int
+  createdBy   User     @relation("ClassEvents", fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  /// Daftar agenda: upcoming (>= hari ini) & past
+  @@index([eventDate])
+}
+
+// ===================================
+// NOTIFIKASI (Phase 11) — in-app, fan-out terbatas anti spam
+// ===================================
+
+model Notification {
+  id         Int      @id @default(autoincrement())
+  /// Penerima
+  userId     Int
+  user       User     @relation("Notifications", fields: [userId], references: [id], onDelete: Cascade)
+  /// ANNOUNCEMENT | DISCUSSION_REPLY | EVENT | GALLERY
+  type       String
+  /// Teks singkat, maks 200 char, tanpa secret
+  message    String
+  /// Path internal dashboard untuk navigasi (mis. /dashboard/announcements)
+  link       String?
+  targetType String?
+  targetId   Int?
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  /// Dropdown bell: unread milik user, terbaru dulu
+  @@index([userId, isRead, createdAt(sort: Desc)])
+}
+
+// ===================================
+// AKADEMIK (Phase 12) — materi, tugas, submission + nilai
+// ===================================
+
+/// Materi/resource pembelajaran. Attachment kecil (≤2 MB) disimpan base64
+/// dan HANYA diakses via endpoint ber-permission (tidak pernah publik).
+model Material {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  /// Mata pelajaran / topik (mis. "Dasar-Dasar TKJ")
+  subject     String?
+  /// Link resource eksternal (opsional)
+  externalUrl String?
+  fileName    String?
+  fileMime    String?
+  /// base64 murni — validasi magic bytes saat upload
+  fileData    String?
+  fileSize    Int?
+  /// DRAFT | PUBLISHED | ARCHIVED
+  status      String   @default("PUBLISHED")
+  authorId    Int
+  author      User     @relation("Materials", fields: [authorId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status, createdAt(sort: Desc)])
+}
+
+/// Tugas kelas. Deadline divalidasi server; keterlambatan dihitung saat submit.
+model Assignment {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String
+  dueDate     DateTime
+  fileName    String?
+  fileMime    String?
+  fileData    String?
+  fileSize    Int?
+  /// DRAFT | PUBLISHED | ARCHIVED
+  status      String   @default("PUBLISHED")
+  authorId    Int
+  author      User     @relation("Assignments", fields: [authorId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  submissions Submission[]
+
+  /// Daftar tugas aktif (urut deadline terdekat)
+  @@index([status, dueDate])
+}
+
+/// Pengumpulan tugas + nilai terintegrasi (satu baris per murid per tugas —
+/// revisi = update baris yang sama via constraint unik).
+model Submission {
+  id           Int        @id @default(autoincrement())
+  assignmentId Int
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  studentId    Int
+  student      User       @relation("Submissions", fields: [studentId], references: [id], onDelete: Cascade)
+  /// Catatan/jawaban teks dari murid (opsional, ≤2000)
+  note         String?
+  fileName     String?
+  fileMime     String?
+  fileData     String?
+  fileSize     Int?
+  submittedAt  DateTime   @default(now())
+  /// Dihitung server saat submit (dueDate banding submittedAt)
+  isLate       Boolean    @default(false)
+  // --- PENILAIAN (grading terintegrasi) ---
+  /// Nilai 0–100, null = belum dinilai
+  grade        Int?
+  feedback     String?
+  gradedById   Int?
+  gradedBy     User?      @relation("GradedSubmissions", fields: [gradedById], references: [id], onDelete: SetNull)
+  gradedAt     DateTime?
+  updatedAt    DateTime   @updatedAt
+
+  /// Satu submission per murid per tugas (revisi menimpa)
+  @@unique([assignmentId, studentId])
+  @@index([studentId])
 }
 
 // ===================================
@@ -153,4 +337,8 @@ model ActivityLog {
   targetType  String?
   targetId    Int?
   createdAt   DateTime @default(now())
+
+  /// Daftar log diurutkan terbaru & difilter per action
+  @@index([createdAt(sort: Desc)])
+  @@index([action])
 }

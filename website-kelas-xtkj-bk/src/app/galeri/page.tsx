@@ -3,6 +3,7 @@ import { classInfo } from "@/data/classInfo";
 import { galleryItems as staticItems } from "@/data/gallery";
 import GaleriClient from "./GaleriClient";
 import type { GalleryItem } from "@/types";
+import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = {
   title: "Galeri",
@@ -11,26 +12,27 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-// Ambil galeri APPROVED dari database; fallback statis bila DB kosong/gagal
+// Ambil galeri APPROVED langsung dari database (query server-side;
+// self-fetch ke /api/gallery rapuh terhadap env URL dan tidak diperlukan).
+// Fallback statis bila DB kosong/gagal.
 async function getGallery(): Promise<GalleryItem[]> {
   try {
-    const base = process.env.NEXT_PUBLIC_SITE_URL ?? "";
-    const res = await fetch(`${base}/api/gallery`, {
-      cache: "no-store",
+    const items = await prisma.galleryItem.findMany({
+      where: { status: "APPROVED" },
+      orderBy: { createdAt: "desc" },
     });
-    if (!res.ok) return staticItems;
-    const data = await res.json();
-    if (!data.items || data.items.length === 0) return staticItems;
-    return data.items.map(
-      (item: { id: number; imagePath: string; title: string; description: string | null; createdAt: string }) => ({
-        id: item.id,
-        image: item.imagePath,
-        title: item.title,
-        category: "Kegiatan Kelas" as const,
-        date: item.createdAt,
-        description: item.description ?? undefined,
-      })
-    );
+    if (items.length === 0) return staticItems;
+    return items.map((item) => ({
+      id: item.id,
+      // Data URL (upload serverless) → serve via endpoint agar HTML ramping
+      image: item.imagePath.startsWith("data:")
+        ? `/api/gallery/image/${item.id}`
+        : item.imagePath,
+      title: item.title,
+      category: "Kegiatan Kelas" as const,
+      date: item.createdAt.toISOString(),
+      description: item.description ?? undefined,
+    }));
   } catch {
     return staticItems;
   }

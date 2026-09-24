@@ -14,7 +14,8 @@ export type PermissionAction =
   | "update"
   | "delete"
   | "moderate"
-  | "upload";
+  | "upload"
+  | "grade";
 
 const PERMISSIONS: Record<Role, Record<string, PermissionAction[]>> = {
   DEVELOPER: {
@@ -26,10 +27,18 @@ const PERMISSIONS: Record<Role, Record<string, PermissionAction[]>> = {
     // User management: developer TIDAK boleh melihat/mengubah secret
     // (password hash tidak pernah diekspos lewat API users)
     users: ["read", "update", "delete", "moderate", "create"],
-    gallery: ["read", "create", "update", "delete", "moderate"],
+    // Galeri: akses penuh + upload foto dokumentasi (masuk alur moderasi)
+    gallery: ["read", "create", "update", "delete", "moderate", "upload"],
     profile: ["read", "update"],
     // Settings & kuota: hanya developer (matrix Phase 6)
     settings: ["read", "update"],
+    // Diskusi & agenda: akses penuh + moderasi
+    discussions: ["read", "create", "delete", "moderate"],
+    events: ["read", "create", "update", "delete"],
+    // Akademik: akses penuh (kelola materi/tugas, lihat semua submission, nilai)
+    materials: ["read", "create", "update", "delete"],
+    assignments: ["read", "create", "update", "delete"],
+    submissions: ["read", "grade", "delete"],
   },
   WALI_KELAS: {
     announcements: ["read", "create", "update"],
@@ -38,10 +47,19 @@ const PERMISSIONS: Record<Role, Record<string, PermissionAction[]>> = {
     schedules: ["read", "create", "update"],
     activityLogs: [],
     users: [],
-    // Moderasi galeri: bagian tanggung jawab wali kelas (approve/reject)
-    gallery: ["read", "moderate"],
+    // Galeri: wali kelas mengelola & mengunggah foto dokumentasi kelas juga
+    // (upload tetap masuk PENDING → dimoderasi sesuai alur Phase 5)
+    gallery: ["read", "moderate", "upload"],
     profile: ["read", "update"],
     settings: [],
+    // Diskusi: ikut serta + moderasi konten siapa pun
+    discussions: ["read", "create", "delete", "moderate"],
+    // Agenda: mengelola kegiatan kelas
+    events: ["read", "create", "update", "delete"],
+    // Akademik: wali kelas mengelola materi/tugas, menilai submission
+    materials: ["read", "create", "update", "delete"],
+    assignments: ["read", "create", "update", "delete"],
+    submissions: ["read", "grade", "delete"],
   },
   ANGGOTA: {
     announcements: ["read"],
@@ -54,6 +72,14 @@ const PERMISSIONS: Record<Role, Record<string, PermissionAction[]>> = {
     gallery: ["read", "create", "upload"],
     profile: ["read", "update"],
     settings: [],
+    // Diskusi: semua role login boleh berpartisipasi (hapus milik sendiri)
+    discussions: ["read", "create", "delete"],
+    // Agenda: murid hanya melihat
+    events: ["read"],
+    // Akademik: murid membaca materi/tugas, mengumpulkan & melihat nilai miliknya
+    materials: ["read"],
+    assignments: ["read"],
+    submissions: ["create"],
   },
 };
 

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { REGISTRATION_ROLE } from "@/lib/roles";
 import { getQuotaStatus, getSetting, SETTING_KEYS } from "@/lib/settings";
 import { handleApiError, logActivity, jsonError } from "@/lib/api";
+import { rateLimit, clientIp } from "@/lib/rateLimit";
 
 const registerSchema = z
   .object({
@@ -41,6 +42,14 @@ export async function POST(request: Request) {
       } catch {
         return jsonError("Permintaan tidak valid.", 403);
       }
+    }
+
+    // Rate limiting: 3 pendaftaran / menit per IP (anti spam akun)
+    const ipLimit = rateLimit(`register:ip:${clientIp(request)}`, 3, 60_000);
+    if (!ipLimit.allowed) {
+      const res = jsonError("Terlalu banyak pendaftaran. Coba lagi nanti.", 429);
+      res.headers.set("Retry-After", String(ipLimit.retryAfterSec));
+      return res;
     }
 
     let raw: unknown;

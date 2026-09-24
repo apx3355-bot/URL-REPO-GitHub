@@ -45,7 +45,8 @@ export async function GET(request: Request) {
   }
 }
 
-// POST /api/gallery — upload foto (murid & developer; wali kelas tidak upload, hanya moderasi)
+// POST /api/gallery — upload foto (developer, wali kelas & murid —
+// mengikuti matrix gallery:upload; semua upload masuk alur moderasi PENDING)
 export async function POST(request: Request) {
   try {
     const guard = await requireUser();
@@ -95,13 +96,15 @@ export async function POST(request: Request) {
       );
     }
 
-    const { publicPath } = await saveUploadFile(buffer, realType);
+    // Filesystem writable → path file; read-only (serverless) → data URL
+    // (diserve via /api/gallery/image/<id> — lihat route image).
+    const { publicPath: imagePath } = await saveUploadFile(buffer, realType);
 
-    // Moderasi: semua upload murid masuk PENDING (aturan moderasi eksplisit Phase 5)
+    // Moderasi: semua upload masuk PENDING (aturan moderasi eksplisit Phase 5)
     const item = await prisma.galleryItem.create({
       data: {
         userId: guard.user.id,
-        imagePath: publicPath,
+        imagePath,
         title,
         description: description || null,
         status: "PENDING",

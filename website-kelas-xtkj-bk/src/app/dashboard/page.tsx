@@ -1,6 +1,7 @@
 import { getSessionUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getQuotaStatus } from "@/lib/settings";
+import AcademicSummary from "./AcademicSummary";
 import DeveloperDashboard from "./DeveloperDashboard";
 import WaliKelasDashboard from "./WaliKelasDashboard";
 import AnggotaDashboard from "./AnggotaDashboard";
@@ -49,45 +50,54 @@ export default async function DashboardPage() {
       ]);
 
     return (
-      <DeveloperDashboard
-        user={user}
-        stats={{
-          members: memberCount,
-          announcements: announcementCount,
-          schedules: scheduleCount,
-          structure: structureCount,
-        }}
-        system={{
-          totalUsers,
-          totalMurid,
-          totalWali,
-          totalDeveloper,
-          pendingGallery,
-          quota,
-        }}
-        announcements={latestAnnouncements}
-        logs={recentLogs}
-      />
+      <>
+        <DeveloperDashboard
+          user={user}
+          stats={{
+            members: memberCount,
+            announcements: announcementCount,
+            schedules: scheduleCount,
+            structure: structureCount,
+          }}
+          system={{
+            totalUsers,
+            totalMurid,
+            totalWali,
+            totalDeveloper,
+            pendingGallery,
+            quota,
+          }}
+          announcements={latestAnnouncements}
+          logs={recentLogs}
+        />
+        <AcademicSummary role={user.role} userId={user.id} />
+      </>
     );
   }
 
   if (user.role === "WALI_KELAS") {
     return (
-      <WaliKelasDashboard
-        user={user}
-        stats={{ members: memberCount, announcements: announcementCount, schedules: scheduleCount }}
-        announcements={latestAnnouncements}
-        schedules={schedules}
-      />
+      <>
+        <WaliKelasDashboard
+          user={user}
+          stats={{ members: memberCount, announcements: announcementCount, schedules: scheduleCount }}
+          announcements={latestAnnouncements}
+          schedules={schedules}
+        />
+        <AcademicSummary role={user.role} userId={user.id} />
+      </>
     );
   }
 
   return (
-    <AnggotaDashboard
-      user={user}
-      announcements={latestAnnouncements}
-      schedules={schedules}
-      structureCount={structureCount}
-    />
+    <>
+      <AnggotaDashboard
+        user={user}
+        announcements={latestAnnouncements}
+        schedules={schedules}
+        structureCount={structureCount}
+      />
+      <AcademicSummary role={user.role} userId={user.id} />
+    </>
   );
 }

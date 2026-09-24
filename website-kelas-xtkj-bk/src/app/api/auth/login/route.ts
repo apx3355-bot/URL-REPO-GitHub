@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { createSession } from "@/lib/session";
 import { isRole } from "@/lib/roles";
 import { handleApiError, logActivity, jsonError } from "@/lib/api";
+import { rateLimit, clientIp, peekUsername } from "@/lib/rateLimit";
 
 const loginSchema = z.object({
   username: z.string().trim().min(1, "Username wajib diisi").max(64),
@@ -28,6 +29,22 @@ export async function POST(request: Request) {
   try {
     if (!sameOrigin(request)) {
       return jsonError("Permintaan tidak valid.", 403);
+    }
+
+    // Rate limiting anti brute force — dua lapis:
+    //   per-IP : 10 attempt / menit (bot sederhana dari satu mesin)
+    //   per-user: 5 attempt / 5 menit (target satu akun dari banyak IP)
+    const usernameRaw = await peekUsername(request);
+    const ipLimit = rateLimit(`login:ip:${clientIp(request)}`, 10, 60_000);
+    const userLimit = usernameRaw
+      ? rateLimit(`login:user:${usernameRaw}`, 5, 5 * 60_000)
+      : null;
+    const blocked = !ipLimit.allowed || (userLimit !== null && !userLimit.allowed);
+    if (blocked) {
+      const retryAfter = Math.max(ipLimit.retryAfterSec, userLimit?.retryAfterSec ?? 0);
+      const res = jsonError("Terlalu banyak percobaan. Coba lagi nanti.", 429);
+      res.headers.set("Retry-After", String(retryAfter));
+      return res;
     }
 
     let raw: unknown;

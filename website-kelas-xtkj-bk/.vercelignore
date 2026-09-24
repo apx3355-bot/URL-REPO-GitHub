@@ -1,0 +1,12 @@
+.kilo
+.freebuff
+.next
+.vercel
+.git
+.env
+.env.local
+node_modules/.cache
+dev-server.log
+*.log
+prisma/dev.db
+public/uploads/gallery

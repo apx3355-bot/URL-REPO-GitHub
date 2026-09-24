@@ -117,6 +117,11 @@ npx next start
 
 ## Deployment Notes
 
+Panduan lengkap (Vercel + Postgres, VPS + SQLite/Postgres, seed, backup,
+troubleshooting): **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)**.
+
+Ringkasan:
+
 - Isi `SESSION_SECRET` dengan nilai acak kuat di environment production
   (`openssl rand -base64 48`).
 - SQLite cocok untuk skala kecil; untuk multi-instance gunakan Postgres —
@@ -124,6 +129,8 @@ npx next start
 - Aplikasi menulis file ke `public/uploads/gallery` — pada platform read-only
   (Vercel dkk.) gunakan object storage (S3/Supabase Storage) dan sesuaikan
   `src/lib/upload.ts`.
+- Setelah seed production, segera ganti semua password seed via User
+  Management.
 
 ## Backup / Recovery
 

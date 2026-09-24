@@ -41,7 +41,17 @@ export default function GalleryPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isModerator = me?.role === "DEVELOPER" || me?.role === "WALI_KELAS";
-  const canUpload = me?.role === "DEVELOPER" || me?.role === "ANGGOTA";
+  // Upload: mengikuti matrix permission roles.ts (gallery:upload) —
+  // DEVELOPER, WALI_KELAS, dan ANGGOTA semuanya diizinkan mengunggah.
+  const canUpload =
+    me?.role === "DEVELOPER" || me?.role === "WALI_KELAS" || me?.role === "ANGGOTA";
+
+  // Gambar item: data URL (upload serverless) diserve via endpoint by-id
+  // agar HTML list tetap ramping; path file publik dipakai apa adanya.
+  const imgSrc = (item: GalleryItem) =>
+    item.imagePath.startsWith("data:")
+      ? `/api/gallery/image/${item.id}`
+      : item.imagePath;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -196,7 +206,7 @@ export default function GalleryPage() {
                   {queue.map((item) => (
                     <div key={item.id} className="mod-card">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={item.imagePath} alt={item.title} className="mod-img" loading="lazy" />
+                      <img src={imgSrc(item)} alt={item.title} className="mod-img" loading="lazy" />
                       <div className="mod-info">
                         <p className="mod-title">{item.title}</p>
                         {item.description && <p className="mod-desc">{item.description}</p>}

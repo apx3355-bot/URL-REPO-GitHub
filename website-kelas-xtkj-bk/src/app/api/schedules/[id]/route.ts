@@ -8,6 +8,7 @@ import {
   logActivity,
   jsonError,
 } from "@/lib/api";
+import { notifyUsers } from "@/lib/notify";
 
 const DAYS = ["SENIN", "SELASA", "RABU", "KAMIS", "JUMAT", "SABTU"] as const;
 const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -70,6 +71,16 @@ export async function PUT(
       description: `${guard.user.username} mengubah jadwal ${schedule.day} ${schedule.startTime}`,
       targetType: "schedule",
       targetId: id,
+    });
+
+    // Phase 12: notifikasi perubahan jadwal (best-effort, anti-spam)
+    await notifyUsers({
+      excludeUserId: guard.user.id,
+      type: "SCHEDULE",
+      message: `Jadwal diubah: ${schedule.subject} (${schedule.day} ${schedule.startTime})`,
+      link: "/dashboard/schedules",
+      targetType: "schedule",
+      targetId: schedule.id,
     });
 
     return NextResponse.json({ schedule });

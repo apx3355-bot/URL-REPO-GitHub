@@ -1,13 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DashCSS, formatDateTime } from "@/components/dashboard/SharedUI";
+import { SearchIcon, PinIcon } from "@/components/Icons";
 
 interface Announcement {
   id: number;
   title: string;
   content: string;
   status: string;
+  pinned: boolean;
   createdAt: string;
   updatedAt: string;
   author: { username: string; profile: { fullName: string } | null } | null;
@@ -32,13 +34,15 @@ export default function AnnouncementsPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<number | null>(null);
+  const [q, setQ] = useState("");
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (query = "") => {
     setLoading(true);
     setError(null);
     try {
       const [annRes, meRes] = await Promise.all([
-        fetch("/api/announcements?all=1"),
+        fetch(`/api/announcements?all=1${query ? `&q=${encodeURIComponent(query)}` : ""}`),
         fetch("/api/auth/me"),
       ]);
       if (annRes.ok) {
@@ -62,6 +66,33 @@ export default function AnnouncementsPage() {
 
   const canCreate = me?.role === "DEVELOPER" || me?.role === "WALI_KELAS";
   const canDelete = me?.role === "DEVELOPER";
+
+  function onSearchChange(v: string) {
+    setQ(v);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => load(v), 300);
+  }
+
+  async function handlePin(a: Announcement) {
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await fetch(`/api/announcements/${a.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pinned: !a.pinned }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || "Gagal mengubah pin.");
+        return;
+      }
+      setSuccess(a.pinned ? "Pengumuman dilepas dari pin." : "Pengumuman disematkan di atas feed.");
+      load(q);
+    } catch {
+      setError("Tidak dapat terhubung ke server.");
+    }
+  }
 
   function openCreate() {
     setEditing(null);
@@ -134,9 +165,21 @@ export default function AnnouncementsPage() {
           <h1 className="dash-page-title">Pengumuman</h1>
           <p className="dash-page-desc">Kelola pengumuman kelas.</p>
         </div>
-        {canCreate && (
-          <button className="dash-btn" onClick={openCreate}>+ Pengumuman Baru</button>
-        )}
+        <div className="ann-toolbar">
+          <div className="ann-search">
+            <SearchIcon size={14} />
+            <input
+              className="ann-search-input"
+              placeholder="Cari pengumuman..."
+              value={q}
+              onChange={(e) => onSearchChange(e.target.value)}
+              aria-label="Cari pengumuman"
+            />
+          </div>
+          {canCreate && (
+            <button className="dash-btn" onClick={openCreate}>+ Pengumuman Baru</button>
+          )}
+        </div>
       </div>
 
       {error && <div className="dash-alert dash-alert--error" role="alert">{error}</div>}
@@ -145,7 +188,7 @@ export default function AnnouncementsPage() {
       {loading ? (
         <div className="dash-empty">Memuat...</div>
       ) : items.length === 0 ? (
-        <div className="dash-empty">Belum ada pengumuman.</div>
+        <div className="dash-empty">{q ? `Tidak ada hasil untuk "${q}".` : "Belum ada pengumuman."}</div>
       ) : (
         <div className="dash-list">
           {items.map((a) => {
@@ -155,6 +198,11 @@ export default function AnnouncementsPage() {
                 <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap" }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                      {a.pinned && (
+                        <span className="ann-pin" title="Disematkan">
+                          <PinIcon size={12} /> PINNED
+                        </span>
+                      )}
                       <span className="dash-item-title">{a.title}</span>
                       <span className={`dash-status dash-status--${a.status.toLowerCase()}`}>{a.status}</span>
                     </div>
@@ -163,7 +211,17 @@ export default function AnnouncementsPage() {
                       {a.author?.profile?.fullName ?? a.author?.username ?? "—"} · {formatDateTime(a.createdAt)}
                     </div>
                   </div>
-                  <div style={{ display: "flex", gap: "0.375rem", flexShrink: 0 }}>
+                  <div style={{ display: "flex", gap: "0.375rem", flexShrink: 0, alignItems: "flex-start" }}>
+                    {canEdit && (
+                      <button
+                        className={`ann-pin-btn ${a.pinned ? "ann-pin-btn--active" : ""}`}
+                        onClick={() => handlePin(a)}
+                        title={a.pinned ? "Lepas pin" : "Sematkan di atas"}
+                        aria-label={a.pinned ? "Lepas pin" : "Sematkan di atas"}
+                      >
+                        <PinIcon size={14} />
+                      </button>
+                    )}
                     {canEdit && (
                       <button className="dash-btn dash-btn--secondary dash-btn--sm" onClick={() => openEdit(a)}>Edit</button>
                     )}
@@ -233,6 +291,84 @@ export default function AnnouncementsPage() {
           </div>
         </div>
       )}
+      <style>{`
+        .ann-toolbar {
+          display: flex;
+          align-items: center;
+          gap: 0.625rem;
+          flex-wrap: wrap;
+        }
+
+        .ann-search {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 0.4375rem 0.75rem;
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-sm);
+          color: var(--color-text-subtle);
+          background: var(--color-surface);
+          min-width: 220px;
+        }
+
+        .ann-search:focus-within {
+          border-color: var(--color-accent);
+        }
+
+        .ann-search-input {
+          border: none;
+          outline: none;
+          background: transparent;
+          color: var(--color-text);
+          font-size: 0.82rem;
+          width: 100%;
+        }
+
+        .ann-pin {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.25rem;
+          font-size: 0.6rem;
+          font-weight: 700;
+          letter-spacing: 0.06em;
+          padding: 0.125rem 0.5rem;
+          border-radius: 999px;
+          background: var(--color-warning-soft);
+          color: var(--color-warning);
+        }
+
+        .ann-pin-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 30px;
+          height: 30px;
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-sm);
+          background: transparent;
+          color: var(--color-text-subtle);
+          cursor: pointer;
+          transition: border-color 0.15s, color 0.15s;
+        }
+
+        .ann-pin-btn:hover {
+          color: var(--color-warning);
+          border-color: var(--color-warning);
+        }
+
+        .ann-pin-btn--active {
+          color: var(--color-warning);
+          border-color: var(--color-warning);
+          background: var(--color-warning-soft);
+        }
+
+        @media (max-width: 480px) {
+          .ann-search {
+            min-width: 0;
+            width: 100%;
+          }
+        }
+      `}</style>
     </div>
   );
 }

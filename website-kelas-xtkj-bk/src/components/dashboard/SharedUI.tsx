@@ -255,6 +255,61 @@ export function DashCSS() {
       .dash-status--published { background: var(--color-success-soft); color: var(--color-success); }
       .dash-status--draft { background: var(--color-warning-soft); color: var(--color-warning); }
       .dash-status--archived { background: var(--color-border-light); color: var(--color-text-muted); }
+      .dash-page-header--row {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+      }
+      .agenda-tabs {
+        display: inline-flex;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        overflow: hidden;
+      }
+      .agenda-tab {
+        padding: 0.4375rem 1rem;
+        font-size: 0.8rem;
+        font-weight: 550;
+        background: transparent;
+        color: var(--color-text-muted);
+        border: none;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s;
+      }
+      .agenda-tab--active {
+        background: var(--color-accent-soft);
+        color: var(--color-accent);
+      }
+      .dash-search-wrap {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.4375rem 0.75rem;
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-sm);
+        color: var(--color-text-subtle);
+        background: var(--color-surface);
+        min-width: 220px;
+      }
+      .dash-search-wrap:focus-within {
+        border-color: var(--color-accent);
+      }
+      .dash-search-input {
+        border: none;
+        outline: none;
+        background: transparent;
+        color: var(--color-text);
+        font-size: 0.82rem;
+        width: 100%;
+      }
+      @media (max-width: 480px) {
+        .dash-search-wrap {
+          min-width: 0;
+          width: 100%;
+        }
+      }
       @media (min-width: 640px) {
         .dash-grid-stats { grid-template-columns: repeat(4, 1fr); }
       }

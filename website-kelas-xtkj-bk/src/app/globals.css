@@ -192,3 +192,681 @@ textarea {
     scroll-behavior: auto !important;
   }
 }
+
+/* ============================================================
+   PHASE 13 — HOMEPAGE VISUAL EXPERIENCE (prefix hx-)
+   Scope: HANYA beranda. Semua animasi memakai transform/opacity
+   (GPU-friendly, tanpa layout shift). Diatur via globals agar
+   class tidak hilang lintas halaman (pelajaran agenda-tabs).
+   ============================================================ */
+
+:root {
+  --hx-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  /* Nilai parallax cursor hero — di-update JS (0..1), default 0 */
+  --hx-px: 0;
+  --hx-py: 0;
+}
+
+/* ---------- Section reveal (IntersectionObserver) ---------- */
+.hx-reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition:
+    opacity 0.6s var(--hx-ease),
+    transform 0.6s var(--hx-ease);
+}
+
+.hx-reveal--visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---------- Entrance on-load (hero, sekali jalan) ---------- */
+@keyframes hx-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.hx-enter {
+  opacity: 0;
+  animation: hx-fade-up 0.55s var(--hx-ease) forwards;
+}
+
+/* ---------- Hero brand: entrance + idle float + ring decor ---------- */
+.hx-hero-brand {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+  /* Parallax cursor halus — hanya transform */
+  transform: translate3d(calc(var(--hx-px) * 8px), calc(var(--hx-py) * 6px), 0);
+  transition: transform 0.25s linear;
+}
+
+.hx-hero-logo {
+  position: relative;
+  z-index: 2;
+  opacity: 0;
+  animation:
+    hx-fade-up 0.6s var(--hx-ease) 0.05s forwards,
+    hx-float 5.5s ease-in-out 0.75s infinite;
+}
+
+@keyframes hx-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.hx-hero-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 1px solid var(--color-accent);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.hx-hero-ring--a {
+  animation:
+    hx-ring-in 0.7s var(--hx-ease) 0.15s forwards,
+    hx-ring-breathe 6s ease-in-out 0.9s infinite;
+}
+
+.hx-hero-ring--b {
+  inset: -10px;
+  animation:
+    hx-ring-in 0.7s var(--hx-ease) 0.3s forwards,
+    hx-ring-breathe 6s ease-in-out 1.4s infinite reverse;
+}
+
+@keyframes hx-ring-in {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  to {
+    opacity: 0.35;
+    transform: scale(1);
+  }
+}
+
+@keyframes hx-ring-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(1.07);
+    opacity: 0.15;
+  }
+}
+
+/* Hero content stagger — delay via inline style di elemen */
+.hx-enter {
+  will-change: opacity, transform;
+}
+
+/* ---------- Fallback gambar rusak/missing ---------- */
+.hx-photo-broken {
+  width: 100%;
+  min-height: 160px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  background:
+    repeating-linear-gradient(
+      45deg,
+      var(--color-bg-alt),
+      var(--color-bg-alt) 10px,
+      var(--color-surface) 10px,
+      var(--color-surface) 20px
+    );
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-subtle);
+  font-size: 0.75rem;
+}
+
+.hx-photo-broken svg {
+  opacity: 0.5;
+}
+
+/* ---------- Tombol bulat (slider/viewer) ---------- */
+.hx-btn-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 9999px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.hx-btn-circle:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.hx-btn-circle:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.hx-btn-circle--overlay {
+  background: rgba(5, 11, 20, 0.55);
+  border-color: rgba(248, 250, 252, 0.25);
+  color: #f8fafc;
+  backdrop-filter: blur(4px);
+}
+
+.hx-btn-circle--overlay:hover:not(:disabled) {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+/* ---------- Member carousel (Phase 14) ---------- */
+.hx-mc-stage {
+  position: relative;
+  height: 300px;
+  overflow: hidden; /* kartu samping = peek, terpotong rapi di tepi — tak pernah meluber ke document scroll */
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+  outline: none;
+}
+
+/* Fokus keyboard terlihat pada container track, bukan outline default */
+.hx-mc-stage:focus-visible .hx-mc-track {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 8px;
+  border-radius: var(--radius-lg);
+}
+
+.hx-mc-track {
+  position: absolute;
+  inset: 0; /* penuhi stage — kartu (top 50% + translate -50%) ter-center di stage */
+  /* Jarak antar-kartu — WAJIB terdefinisi (dipakai calc() transform kartu) */
+  --hx-mc-step: 240px;
+}
+
+@media (max-width: 767px) {
+  .hx-mc-track {
+    --hx-mc-step: 196px;
+  }
+}
+
+.hx-mc-card {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(230px, 60vw);
+  height: 240px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  padding: 1.25rem 1rem;
+  text-align: center;
+  transition:
+    transform 0.45s var(--hx-ease),
+    opacity 0.45s var(--hx-ease),
+    border-color 0.25s,
+    box-shadow 0.25s;
+}
+
+/* Kartu AKTIF: frame hijau identitas kelas + glow ringan */
+.hx-mc-card--active {
+  border: 2px solid var(--color-success);
+  box-shadow:
+    0 0 0 4px var(--color-success-soft),
+    0 0 18px rgba(34, 197, 94, 0.25),
+    var(--shadow-md);
+  cursor: pointer;
+}
+
+.hx-mc-card--active:hover {
+  box-shadow:
+    0 0 0 4px var(--color-success-soft),
+    0 0 26px rgba(34, 197, 94, 0.35),
+    var(--shadow-md);
+}
+
+/* Kartu tetangga — depth ringan, tetap terlihat */
+.hx-mc-card:not(.hx-mc-card--active) {
+  pointer-events: none;
+}
+
+.hx-mc-name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hx-mc-position {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--color-accent);
+}
+
+.hx-mc-position--plain {
+  color: var(--color-text-subtle);
+}
+
+.hx-mc-hint {
+  font-size: 0.68rem;
+  color: var(--color-text-subtle);
+}
+
+.hx-mc-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.hx-mc-count {
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  text-align: center;
+  margin-top: 0.6rem;
+}
+
+.hx-mc-auto {
+  color: var(--color-text-subtle);
+}
+
+/* ---------- Gallery slider (Class Gallery) ---------- */
+.hx-gslider {
+  position: relative;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  touch-action: pan-y;
+}
+
+.hx-gslider-viewport {
+  overflow: hidden;
+}
+
+.hx-gslider-track {
+  display: flex;
+  transition: transform 0.45s var(--hx-ease);
+}
+
+.hx-gslider-dragging .hx-gslider-track {
+  transition: none;
+}
+
+.hx-gslider-slide {
+  flex: 0 0 100%;
+  min-width: 0;
+  position: relative;
+}
+
+.hx-gslider-open {
+  display: block;
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+
+.hx-gslider-frame {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  overflow: hidden;
+  background: var(--color-bg-alt);
+}
+
+.hx-gslider-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.hx-gslider-caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 2.25rem 1.25rem 1rem;
+  background: linear-gradient(transparent, rgba(5, 11, 20, 0.85));
+  color: #f8fafc;
+  pointer-events: none;
+}
+
+.hx-gslider-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.hx-gslider-desc {
+  font-size: 0.75rem;
+  opacity: 0.8;
+  margin-top: 0.15rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.hx-gslider-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+}
+
+.hx-gslider-nav--prev {
+  left: 0.75rem;
+}
+
+.hx-gslider-nav--next {
+  right: 0.75rem;
+}
+
+.hx-gslider-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+}
+
+.hx-gslider-count {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Dots indicator (member slider + gallery slider) */
+.hx-dots {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.hx-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--color-border);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+}
+
+.hx-dot--active {
+  background: var(--color-accent);
+  transform: scale(1.25);
+}
+
+/* ---------- Photo viewer modal ---------- */
+.hx-viewer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(2, 6, 12, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: hx-viewer-in 0.2s ease-out;
+}
+
+@keyframes hx-viewer-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.hx-viewer-dialog {
+  position: relative;
+  width: min(920px, 100%);
+  max-height: calc(100vh - 2rem);
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  animation: hx-viewer-pop 0.25s var(--hx-ease);
+}
+
+@keyframes hx-viewer-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.hx-viewer-imgwrap {
+  touch-action: pan-y;
+  background: var(--color-bg-alt);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+}
+
+.hx-viewer-imgwrap img {
+  max-width: 100%;
+  max-height: min(62vh, 560px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.hx-viewer-close {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  z-index: 3;
+}
+
+.hx-viewer-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 3;
+}
+
+.hx-viewer-nav--prev {
+  left: 0.6rem;
+}
+
+.hx-viewer-nav--next {
+  right: 0.6rem;
+}
+
+.hx-viewer-meta {
+  padding: 0.875rem 1.25rem 1rem;
+  border-top: 1px solid var(--color-border-light);
+}
+
+.hx-viewer-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text);
+  letter-spacing: -0.01em;
+}
+
+.hx-viewer-sub {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-top: 0.2rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+}
+
+/* ---------- All Photos masonry ---------- */
+.hx-masonry {
+  columns: 2;
+  column-gap: 0.75rem;
+}
+
+.hx-masonry-item {
+  break-inside: avoid;
+  margin: 0 0 0.75rem;
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-surface);
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.hx-masonry-item:hover {
+  border-color: var(--color-accent);
+  transform: translateY(-2px);
+}
+
+.hx-masonry-item img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.hx-masonry-caption {
+  padding: 0.5rem 0.75rem 0.625rem;
+}
+
+.hx-masonry-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hx-masonry-date {
+  font-size: 0.68rem;
+  color: var(--color-text-subtle);
+  margin-top: 0.1rem;
+}
+
+.hx-load-more {
+  display: block;
+  margin: 1.5rem auto 0;
+  padding: 0.55rem 1.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.hx-load-more:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.hx-empty-gallery {
+  text-align: center;
+  padding: 2.5rem 1rem;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.hx-empty-gallery strong {
+  display: block;
+  color: var(--color-text);
+  font-size: 0.95rem;
+  margin-bottom: 0.35rem;
+}
+
+/* ---------- Reduced motion: tampilkan semua info, matikan gerak ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .hx-reveal,
+  .hx-enter,
+  .hx-hero-logo {
+    opacity: 1 !important;
+    transform: none !important;
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .hx-hero-ring {
+    animation: none !important;
+    opacity: 0.25;
+    transform: none;
+  }
+
+  .hx-hero-brand {
+    transform: none !important;
+    transition: none;
+  }
+
+  .hx-mc-card,
+  .hx-gslider-track,
+  .hx-viewer-dialog,
+  .hx-viewer-overlay {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+}

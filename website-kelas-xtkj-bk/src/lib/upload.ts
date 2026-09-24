@@ -58,14 +58,27 @@ export async function ensureUploadDir(): Promise<void> {
   await fs.mkdir(UPLOAD_DIR, { recursive: true });
 }
 
+/**
+ * Simpan gambar galeri — return path yang SIAP disimpan di imagePath.
+ * - Filesystem writable (dev/VM): file di public/uploads/gallery →
+ *   path publik `/uploads/gallery/<nama>`.
+ * - Filesystem read-only (Vercel serverless): DATA URL — pola yang sama
+ *   dengan lampiran akademik Phase 12. Halaman memetakan data URL →
+ *   `/api/gallery/image/<id>` agar HTML tetap ramping.
+ */
 export async function saveUploadFile(
   buffer: Buffer,
   mime: string
 ): Promise<{ filename: string; publicPath: string }> {
-  await ensureUploadDir();
   const filename = generateSafeFilename(mime);
-  await fs.writeFile(path.join(UPLOAD_DIR, filename), buffer);
-  return { filename, publicPath: `/uploads/gallery/${filename}` };
+  try {
+    await ensureUploadDir();
+    await fs.writeFile(path.join(UPLOAD_DIR, filename), buffer);
+    return { filename, publicPath: `/uploads/gallery/${filename}` };
+  } catch {
+    // Filesystem read-only (serverless) → simpan sebagai data URL di DB
+    return { filename, publicPath: `data:${mime};base64,${buffer.toString("base64")}` };
+  }
 }
 
 export async function deleteUploadFile(publicPath: string): Promise<void> {

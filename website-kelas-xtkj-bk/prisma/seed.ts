@@ -3,10 +3,23 @@ import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
+/** Ambil env var wajib; berhenti dengan pesan jelas jika kosong. */
+function requireEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    console.error(`\n[seed] Environment variable ${name} wajib diisi sebelum menjalankan seed.`);
+    console.error("[seed] Salin .env.example ke .env lalu isi nilainya.\n");
+    process.exit(1);
+  }
+  return value;
+}
+
 async function main() {
-  const devPass = process.env.SEED_DEVELOPER_PASSWORD || "Dev!XtkjBk2025";
-  const waliPass = process.env.SEED_WALI_KELAS_PASSWORD || "Wali!XtkjBk2025";
-  const anggotaPass = process.env.SEED_ANGGOTA_PASSWORD || "Anggota!XtkjBk2025";
+  // Fail-fast: tanpa fallback hardcoded — password seed harus lewat env.
+  // Lihat .env.example untuk daftar variabel yang wajib diisi.
+  const devPass = requireEnv("SEED_DEVELOPER_PASSWORD");
+  const waliPass = requireEnv("SEED_WALI_KELAS_PASSWORD");
+  const anggotaPass = requireEnv("SEED_ANGGOTA_PASSWORD");
 
   // --- USERS ---
   const developer = await prisma.user.upsert({

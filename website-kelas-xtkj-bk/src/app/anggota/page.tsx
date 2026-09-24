@@ -12,18 +12,23 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-// Ambil anggota dari database; fallback ke data statis jika DB kosong/gagal
+// Ambil anggota dari database; fallback ke data statis jika DB kosong/gagal.
+// Foto: ClassMember.photo dulu; jika kosong, pakai foto profil akun yang
+// ter-link (ClassMember → User → Profile.photo) — field sensitif tidak di-select.
 async function getMembers(): Promise<ClassMember[]> {
   try {
     const rows = await prisma.classMember.findMany({
       orderBy: [{ position: { sort: "desc", nulls: "last" } }, { fullName: "asc" }],
       take: 200,
+      include: {
+        user: { select: { profile: { select: { fullName: true, photo: true } } } },
+      },
     });
     if (rows.length === 0) return staticMembers;
     return rows.map((r) => ({
       id: r.id,
       name: r.fullName,
-      photo: r.photo,
+      photo: r.photo ?? r.user?.profile?.photo ?? null,
       position: r.position,
       nisn: r.nisn ?? undefined,
     }));

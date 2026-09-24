@@ -18,6 +18,8 @@ const updateSchema = z.object({
   title: z.string().trim().min(3, "Judul minimal 3 karakter").max(120).optional(),
   content: z.string().trim().min(10, "Isi minimal 10 karakter").max(5000).optional(),
   status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]).optional(),
+  // Pin/unpin: developer bebas; wali hanya miliknya (ownership check di bawah)
+  pinned: z.boolean().optional(),
 });
 
 export async function PUT(
