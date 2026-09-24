@@ -1,4 +1,8 @@
 import crypto from "crypto";
+import {
+  uploadGalleryImage,
+  isStorageImagePath,
+} from "@/lib/storage";
 import fs from "fs/promises";
 import path from "path";
 
@@ -60,28 +64,46 @@ export async function ensureUploadDir(): Promise<void> {
 
 /**
  * Simpan gambar galeri — return path yang SIAP disimpan di imagePath.
- * - Filesystem writable (dev/VM): file di public/uploads/gallery →
- *   path publik `/uploads/gallery/<nama>`.
- * - Filesystem read-only (Vercel serverless): DATA URL — pola yang sama
- *   dengan lampiran akademik Phase 12. Halaman memetakan data URL →
- *   `/api/gallery/image/<id>` agar HTML tetap ramping.
+ * Urutan prioritas:
+ * 1. Supabase Storage (jika SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY diset)
+ *    → URL publik `.../storage/v1/object/public/gallery/<nama>` — durabel.
+ * 2. Filesystem lokal (dev/VM writable) → `/uploads/gallery/<nama>`
+ *    (pola lama Phase 5; ephemeral di Vercel).
+ * 3. Data URL di DB (serverless tanpa Storage) → diserve via
+ *    `/api/gallery/image/<id>` (pola Phase 12) — fallback terakhir.
  */
 export async function saveUploadFile(
   buffer: Buffer,
   mime: string
 ): Promise<{ filename: string; publicPath: string }> {
   const filename = generateSafeFilename(mime);
+
+  // 1. Supabase Storage — penyimpanan durabel produksi
+  const stored = await uploadGalleryImage(buffer, mime);
+  if (stored) {
+    return { filename, publicPath: stored.publicUrl };
+  }
+
+  // 2. Filesystem lokal
   try {
     await ensureUploadDir();
     await fs.writeFile(path.join(UPLOAD_DIR, filename), buffer);
     return { filename, publicPath: `/uploads/gallery/${filename}` };
   } catch {
-    // Filesystem read-only (serverless) → simpan sebagai data URL di DB
+    // 3. Filesystem read-only (serverless) → data URL di DB
     return { filename, publicPath: `data:${mime};base64,${buffer.toString("base64")}` };
   }
 }
 
 export async function deleteUploadFile(publicPath: string): Promise<void> {
+  // Storage Supabase → hapus object di sana
+  if (isStorageImagePath(publicPath)) {
+    const { deleteGalleryImage } = await import("@/lib/storage");
+    await deleteGalleryImage(publicPath);
+    return;
+  }
+  // Data URL (fallback serverless) → tidak ada file fisik
+  if (publicPath.startsWith("data:")) return;
   // Hanya hapus file di dalam direktori upload — cegah path traversal
   const resolved = path.resolve(process.cwd(), "public", publicPath.replace(/^\//, ""));
   if (!resolved.startsWith(path.resolve(UPLOAD_DIR))) return;
