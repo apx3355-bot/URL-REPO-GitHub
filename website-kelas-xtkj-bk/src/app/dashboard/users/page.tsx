@@ -8,6 +8,8 @@ interface AppUser {
   username: string;
   role: "DEVELOPER" | "WALI_KELAS" | "ANGGOTA";
   isActive: boolean;
+  inactiveReason: string | null;
+  inactiveAt: string | null;
   createdAt: string;
   profile: { fullName: string; nisn: string | null } | null;
 }
@@ -40,14 +42,24 @@ export default function UsersPage() {
   const [resetTarget, setResetTarget] = useState<AppUser | null>(null);
   const [resetPassword, setResetPassword] = useState("");
   const [resetError, setResetError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AppUser | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Confirm role change / deactivate
-  const [pendingChange, setPendingChange] = useState<{ userId: number; payload: { role?: string; isActive?: boolean }; label: string } | null>(null);
+  const [pendingChange, setPendingChange] = useState<{ userId: number; payload: { role?: string; isActive?: boolean; reason?: string }; label: string } | null>(null);
+  // Soft-delete: modal alasan penonaktifan
+  const [deactivateTarget, setDeactivateTarget] = useState<AppUser | null>(null);
+  const [deactivateReason, setDeactivateReason] = useState("");
+  const [deactivateError, setDeactivateError] = useState<string | null>(null);
+  const [meId, setMeId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
+      // id akun sendiri (backend juga memblok self-degrade)
+      fetch("/api/auth/me").then((r) => (r.ok ? r.json() : null)).then((d) => setMeId(d?.user?.id ?? null)).catch(() => {});
       const params = new URLSearchParams();
       if (search) params.set("search", search);
       if (roleFilter) params.set("role", roleFilter);
@@ -74,7 +86,7 @@ export default function UsersPage() {
     return () => clearTimeout(t);
   }, [load, search]);
 
-  async function sendUpdate(userId: number, payload: { role?: string; isActive?: boolean; newPassword?: string }) {
+  async function sendUpdate(userId: number, payload: { role?: string; isActive?: boolean; reason?: string; newPassword?: string }) {
     setBusy(userId);
     setError(null);
     setSuccess(null);
@@ -134,6 +146,51 @@ export default function UsersPage() {
     if (ok) {
       setResetTarget(null);
       setResetPassword("");
+    }
+  }
+
+  async function submitDeactivate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!deactivateTarget) return;
+    setError(null);
+    setSuccess(null);
+    setDeactivateError(null);
+    const res = await sendUpdate(deactivateTarget.id, {
+      isActive: false,
+      reason: deactivateReason.trim(),
+    });
+    if (res) {
+      setDeactivateTarget(null);
+      setDeactivateReason("");
+    }
+  }
+
+  async function handleDelete(e: React.FormEvent) {
+    e.preventDefault();
+    if (!deleteTarget) return;
+    setBusy(deleteTarget.id);
+    setError(null);
+    setSuccess(null);
+    setDeleteError(null);
+    try {
+      const res = await fetch("/api/users", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: deleteTarget.id, confirmUsername: deleteConfirm }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setDeleteError(data.fields?.confirmUsername || data.error || "Gagal menghapus akun.");
+        return;
+      }
+      setSuccess(data.message || "Akun dihapus.");
+      setDeleteTarget(null);
+      setDeleteConfirm("");
+      load();
+    } catch {
+      setDeleteError("Tidak dapat terhubung ke server.");
+    } finally {
+      setBusy(null);
     }
   }
 
@@ -286,6 +343,11 @@ export default function UsersPage() {
                     <span className={`dash-status ${u.isActive ? "dash-status--published" : "dash-status--archived"}`}>
                       {u.isActive ? "Aktif" : "Nonaktif"}
                     </span>
+                    {!u.isActive && u.inactiveReason && (
+                      <span className="users-inactive-reason" title={u.inactiveAt ? new Date(u.inactiveAt).toLocaleString("id-ID") : undefined}>
+                        {u.inactiveReason}
+                      </span>
+                    )}
                   </td>
                   <td style={{ whiteSpace: "nowrap" }}>{formatDate(u.createdAt)}</td>
                   <td>
@@ -297,18 +359,37 @@ export default function UsersPage() {
                       >
                         Reset Password
                       </button>
+                      {u.isActive ? (
+                        <button
+                          className="dash-btn dash-btn--sm dash-btn--danger"
+                          onClick={() => { setDeactivateTarget(u); setDeactivateReason(""); setDeactivateError(null); }}
+                          disabled={busy === u.id || u.id === meId}
+                          title={u.id === meId ? "Tidak dapat menonaktifkan akun Anda sendiri" : "Nonaktifkan dengan alasan"}
+                        >
+                          Nonaktifkan
+                        </button>
+                      ) : (
+                        <button
+                          className="dash-btn dash-btn--sm"
+                          onClick={() =>
+                            setPendingChange({
+                              userId: u.id,
+                              payload: { isActive: true },
+                              label: `mengaktifkan kembali akun @${u.username}?`,
+                            })
+                          }
+                          disabled={busy === u.id}
+                        >
+                          Aktifkan
+                        </button>
+                      )}
                       <button
-                        className={`dash-btn dash-btn--sm ${u.isActive ? "dash-btn--danger" : ""}`}
-                        onClick={() =>
-                          setPendingChange({
-                            userId: u.id,
-                            payload: { isActive: !u.isActive },
-                            label: `${u.isActive ? "menonaktifkan" : "mengaktifkan"} akun @${u.username}?`,
-                          })
-                        }
-                        disabled={busy === u.id}
+                        className="dash-btn dash-btn--sm dash-btn--danger users-delete-btn"
+                        onClick={() => { setDeleteTarget(u); setDeleteConfirm(""); setDeleteError(null); }}
+                        disabled={busy === u.id || (u.role === "DEVELOPER" && users.filter((x) => x.role === "DEVELOPER" && x.isActive).length <= 1)}
+                        title={u.role === "DEVELOPER" && users.filter((x) => x.role === "DEVELOPER" && x.isActive).length <= 1 ? "Tidak dapat menghapus satu-satunya akun Developer" : "Hapus akun permanen"}
                       >
-                        {u.isActive ? "Nonaktifkan" : "Aktifkan"}
+                        Hapus
                       </button>
                     </div>
                   </td>
@@ -372,6 +453,83 @@ export default function UsersPage() {
         </div>
       )}
 
+      {/* Modal nonaktif dengan alasan — soft-delete */}
+      {deactivateTarget && (
+        <div className="users-overlay" role="dialog" aria-modal="true" aria-label="Nonaktifkan akun">
+          <form className="users-modal" onSubmit={submitDeactivate}>
+            <h3 className="users-modal-title">Nonaktifkan @{deactivateTarget.username}</h3>
+            <p className="users-modal-text">
+              Akun tetap tersimpan beserta seluruh datanya dan dapat diaktifkan kembali
+              kapan saja. Semua sesi aktifnya akan logout. Hapus permanen hanya untuk
+              konten yang benar-benar tidak diperlukan.
+            </p>
+            <p className="users-modal-text users-modal-warning">Alasan penonaktifan (tampil di tabel):</p>
+            <input
+              className="dash-input"
+              value={deactivateReason}
+              onChange={(e) => setDeactivateReason(e.target.value)}
+              placeholder="cth: melanggar aturan kelas / bukan anggota kelas / duplikat akun"
+              maxLength={200}
+              minLength={3}
+              required
+              autoFocus
+              aria-label="Alasan penonaktifan"
+            />
+            {deactivateError && <div className="dash-alert dash-alert--error" role="alert">{deactivateError}</div>}
+            <div className="users-modal-actions">
+              <button type="button" className="dash-btn" onClick={() => setDeactivateTarget(null)}>
+                Batal
+              </button>
+              <button
+                type="submit"
+                className="dash-btn dash-btn--danger"
+                disabled={deactivateReason.trim().length < 3 || busy === deactivateTarget.id}
+              >
+                {busy === deactivateTarget.id ? "Menyimpan..." : "Nonaktifkan"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modal hapus akun — type-to-confirm, konfirmasi divalidasi server */}
+      {deleteTarget && (
+        <div className="users-overlay" role="dialog" aria-modal="true" aria-label="Hapus akun">
+          <form className="users-modal" onSubmit={handleDelete}>
+            <h3 className="users-modal-title">Hapus akun @{deleteTarget.username}</h3>
+            <p className="users-modal-text">
+              Tindakan ini <strong>permanen</strong>. Profil dan entri anggota terkait ikut
+              terhapus, foto galeri milik akun ini ikut terhapus, dan tidak dapat
+              dikembalikan. Untuk nonaktif sementara, gunakan &quot;Nonaktifkan&quot;.
+            </p>
+            <p className="users-modal-text users-modal-warning">
+              Ketik <strong>{deleteTarget.username}</strong> untuk mengonfirmasi:
+            </p>
+            <input
+              className="dash-input"
+              value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)}
+              placeholder={deleteTarget.username}
+              autoComplete="off"
+              aria-label="Ketik username untuk konfirmasi"
+            />
+            {deleteError && <div className="dash-alert dash-alert--error" role="alert">{deleteError}</div>}
+            <div className="users-modal-actions">
+              <button type="button" className="dash-btn" onClick={() => setDeleteTarget(null)}>
+                Batal
+              </button>
+              <button
+                type="submit"
+                className="dash-btn dash-btn--danger"
+                disabled={deleteConfirm !== deleteTarget.username || busy === deleteTarget.id}
+              >
+                {busy === deleteTarget.id ? "Menghapus..." : "Hapus Permanen"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       <style>{`
         .users-toolbar {
           display: flex;
@@ -432,6 +590,23 @@ export default function UsersPage() {
           display: flex;
           gap: 0.375rem;
           flex-wrap: wrap;
+        }
+
+        .users-delete-btn { white-space: nowrap; }
+
+        .users-modal-warning {
+          color: var(--color-danger);
+        }
+
+        .users-inactive-reason {
+          display: block;
+          margin-top: 0.25rem;
+          font-size: 0.68rem;
+          color: var(--color-text-muted);
+          max-width: 180px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
 
         .users-overlay {

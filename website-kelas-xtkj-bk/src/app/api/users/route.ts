@@ -11,6 +11,8 @@ const USER_SELECT = {
   username: true,
   role: true,
   isActive: true,
+  inactiveReason: true,
+  inactiveAt: true,
   createdAt: true,
   profile: { select: { fullName: true, nisn: true } },
 } as const;
@@ -125,6 +127,8 @@ const updateSchema = z.object({
   userId: z.number().int().positive(),
   role: z.enum(["DEVELOPER", "WALI_KELAS", "ANGGOTA"]).optional(),
   isActive: z.boolean().optional(),
+  // Alasan penonaktifan (soft-delete) — wajib saat isActive: false
+  reason: z.string().trim().min(3, "Alasan minimal 3 karakter").max(200).optional(),
   newPassword: z.string().min(8, "Password minimal 8 karakter").max(128).optional(),
 });
 
@@ -136,9 +140,18 @@ export async function PATCH(request: Request) {
     const body = await parseBody(request, updateSchema);
     if (!body.ok) return body.response;
 
-    const { userId, role, isActive, newPassword } = body.data;
-    if (role === undefined && isActive === undefined && newPassword === undefined) {
+    const { userId, role, isActive, reason, newPassword } = body.data;
+    if (role === undefined && isActive === undefined && reason === undefined && newPassword === undefined) {
       return jsonError("Tidak ada perubahan yang dikirim.", 400);
+    }
+    // Soft-delete: alasan wajib saat menonaktifkan, tidak boleh dikirim saat mengaktifkan
+    if (isActive === false && (reason === undefined || reason.length < 3)) {
+      return jsonError("Alasan penonaktifan wajib diisi (minimal 3 karakter).", 400, {
+        reason: "Alasan penonaktifan wajib diisi.",
+      });
+    }
+    if (isActive === true && reason !== undefined) {
+      return jsonError("Alasan hanya berlaku saat menonaktifkan akun.", 400);
     }
 
     const target = await prisma.user.findUnique({
@@ -160,7 +173,15 @@ export async function PATCH(request: Request) {
       where: { id: target.id },
       data: {
         ...(role !== undefined ? { role } : {}),
-        ...(isActive !== undefined ? { isActive } : {}),
+        ...(isActive !== undefined
+          ? {
+              isActive,
+              // Soft-delete: catat alasan & waktu; re-aktivasi membersihkan keduanya
+              ...(isActive === false
+                ? { inactiveReason: reason, inactiveAt: new Date() }
+                : { inactiveReason: null, inactiveAt: null }),
+            }
+          : {}),
         // Reset password: bump tokenVersion → semua sesi lama target langsung invalid
         ...(newPassword !== undefined
           ? { passwordHash: await bcrypt.hash(newPassword, 12), tokenVersion: { increment: 1 } }
@@ -183,7 +204,9 @@ export async function PATCH(request: Request) {
       await logActivity({
         userId: guard.user.id,
         action: "USER_STATUS_CHANGE",
-        description: `${guard.user.username} ${isActive ? "mengaktifkan" : "menonaktifkan"} akun ${target.username}`,
+        description: `${guard.user.username} ${isActive ? "mengaktifkan kembali" : "menonaktifkan"} akun ${target.username}${
+          !isActive && reason ? ` — alasan: ${reason}` : ""
+        }`,
         targetType: "user",
         targetId: target.id,
       });
@@ -201,5 +224,92 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ user: updated });
   } catch (error) {
     return handleApiError(error, "users:update");
+  }
+}
+
+// DELETE /api/users — hapus akun permanen. Developer only.
+// Guard berlapis (backend, bukan hanya UI):
+//   1. Tidak bisa menghapus akun sendiri (anti lockout)
+//   2. Developer terakhir tidak boleh dihapus (anti lockout sistem)
+//   3. Konfirmasi: body wajib memuat username target PERSIS (type-to-confirm)
+// Dampak cascade DB (sesuai onDelete schema): Profile & entri ClassMember ikut
+// terhapus, foto galeri/diskusi/submission milik akun ikut terhapus,
+// ActivityLog bertahan (user → null). tokenVersion tak relevan (akun hilang).
+const deleteSchema = z.object({
+  userId: z.number().int().positive(),
+  confirmUsername: z.string().min(1, "Ketik username untuk konfirmasi").max(64),
+});
+
+export async function DELETE(request: Request) {
+  try {
+    const guard = await requirePermission("users", "delete");
+    if (!guard.ok) return guard.response;
+
+    const body = await parseBody(request, deleteSchema);
+    if (!body.ok) return body.response;
+
+    const target = await prisma.user.findUnique({
+      where: { id: body.data.userId },
+      select: {
+        id: true,
+        username: true,
+        role: true,
+        profile: { select: { fullName: true } },
+      },
+    });
+    if (!target) return jsonError("User tidak ditemukan.", 404);
+
+    // 1. Anti lockout — developer tidak bisa menghapus akunnya sendiri
+    if (target.id === guard.user.id) {
+      return jsonError("Anda tidak dapat menghapus akun Anda sendiri.", 400);
+    }
+
+    // 2. Anti lockout sistem — Developer aktif terakhir tidak boleh dihapus
+    if (target.role === "DEVELOPER") {
+      const devCount = await prisma.user.count({
+        where: { role: "DEVELOPER", isActive: true },
+      });
+      if (devCount <= 1) {
+        return jsonError(
+          "Tidak dapat menghapus satu-satunya akun Developer.",
+          400
+        );
+      }
+    }
+
+    // 3. Type-to-confirm — username harus diketik persis
+    if (body.data.confirmUsername !== target.username) {
+      return jsonError("Konfirmasi username tidak cocok.", 400, {
+        confirmUsername: `Ketik "${target.username}" persis untuk mengonfirmasi.`,
+      });
+    }
+
+    // Ringkasan dampak untuk ActivityLog (member ter-link + foto galeri)
+    const [galleryCount, linkedMember] = await Promise.all([
+      prisma.galleryItem.count({ where: { userId: target.id } }),
+      prisma.classMember.findUnique({
+        where: { userId: target.id },
+        select: { fullName: true },
+      }),
+    ]);
+
+    await prisma.user.delete({ where: { id: target.id } });
+
+    await logActivity({
+      userId: guard.user.id,
+      action: "USER_DELETED",
+      description: `${guard.user.username} menghapus akun ${target.role} "${target.username}"${
+        linkedMember ? ` — member "${linkedMember.fullName}" ikut terhapus` : ""
+      }${galleryCount ? ` + ${galleryCount} foto galeri` : ""}`,
+      targetType: "user",
+      targetId: target.id,
+    });
+
+    return NextResponse.json({
+      ok: true,
+      message: `Akun @${target.username} dihapus permanen.`,
+    });
+  } catch (error) {
+    return handleApiError(error, "users:delete");
   }
 }

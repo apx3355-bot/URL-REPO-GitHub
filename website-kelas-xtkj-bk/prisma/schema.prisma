@@ -25,6 +25,9 @@ model User {
   isActive     Boolean  @default(true)
   /// Naik setiap logout/security event → semua token lama otomatis invalid
   tokenVersion Int      @default(0)
+  /// Soft-delete/nonaktif dengan alasan (User Management) — null saat aktif
+  inactiveReason String?
+  inactiveAt     DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
