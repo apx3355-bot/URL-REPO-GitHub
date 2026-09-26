@@ -353,7 +353,7 @@ export default function GalleryPage() {
                 id="g-file"
                 ref={fileInputRef}
                 type="file"
-                accept="image/jpeg,image/png,image/webp"
+                accept="image/*"
                 className="dash-form-input"
                 onChange={onFileChange}
               />

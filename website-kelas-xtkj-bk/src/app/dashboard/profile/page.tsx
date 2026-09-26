@@ -196,7 +196,7 @@ export default function ProfilePage() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/jpeg,image/png,image/webp"
+                  accept="image/*"
                   onChange={handleAvatarFile}
                   className="profile-avatar-input"
                   aria-label="Pilih foto profil"

@@ -24,9 +24,29 @@ export async function processAvatarFile(file: File): Promise<AvatarProcessResult
     return { ok: false, message: "Ukuran file terlalu besar (maksimal 8 MB)." };
   }
 
-  let bitmap: ImageBitmap;
+  // MAINTENANCE V0.2.1 — kompatibilitas Android: createImageBitmap tidak
+  // tersedia/gagal di beberapa browser Android & WebView lama. Fallback:
+  // decode via <img> + objectURL (jalur paling kompatibel), lalu lanjut
+  // ke canvas yang sama.
+  interface Drawable {
+    width: number;
+    height: number;
+    close?: () => void;
+  }
+  let source: Drawable;
+  let objectUrl: string | null = null;
   try {
-    bitmap = await createImageBitmap(file);
+    try {
+      source = await createImageBitmap(file);
+    } catch {
+      objectUrl = URL.createObjectURL(file);
+      source = await new Promise<Drawable>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img as unknown as Drawable);
+        img.onerror = () => reject(new Error("decode"));
+        img.src = objectUrl as string;
+      });
+    }
   } catch {
     return { ok: false, message: "File tidak dapat dibaca sebagai gambar." };
   }
@@ -42,16 +62,17 @@ export async function processAvatarFile(file: File): Promise<AvatarProcessResult
     }
 
     // Crop tengah agar rasio 1:1 tanpa distorsi
-    const side = Math.min(bitmap.width, bitmap.height);
-    const sx = (bitmap.width - side) / 2;
-    const sy = (bitmap.height - side) / 2;
-    ctx.drawImage(bitmap, sx, sy, side, side, 0, 0, AVATAR_DIM, AVATAR_DIM);
+    const side = Math.min(source.width, source.height);
+    const sx = (source.width - side) / 2;
+    const sy = (source.height - side) / 2;
+    ctx.drawImage(source as CanvasImageSource, sx, sy, side, side, 0, 0, AVATAR_DIM, AVATAR_DIM);
 
     const dataUrl = canvas.toDataURL(AVATAR_MIME, AVATAR_QUALITY);
     return { ok: true, dataUrl };
   } catch {
     return { ok: false, message: "Gagal memproses gambar. Coba file lain." };
   } finally {
-    bitmap.close();
+    source.close?.();
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
   }
 }

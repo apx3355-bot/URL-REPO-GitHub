@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import PhotoImg from "@/components/home/PhotoImg";
 import type { GalleryCategory, GalleryItem } from "@/types";
@@ -154,9 +154,24 @@ function LightboxModal({
   );
 }
 
-export default function GaleriClient({ items: galleryItems }: { items: GalleryItem[] }) {
+export default function GaleriClient({
+  items: galleryItems,
+  canUpload = false,
+}: {
+  items: GalleryItem[];
+  canUpload?: boolean;
+}) {
   const [activeCategory, setActiveCategory] = useState<typeof ALL | GalleryCategory>(ALL);
   const [lightboxItem, setLightboxItem] = useState<GalleryItem | null>(null);
+  // MAINTENANCE V0.2.1 — upload dari galeri publik (mobile-friendly):
+  // memakai API /api/gallery existing, tanpa sistem baru.
+  const [showUpload, setShowUpload] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadTitle, setUploadTitle] = useState("");
+  const [uploadDesc, setUploadDesc] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
 
   const filtered = useMemo(() => {
     if (activeCategory === ALL) return galleryItems;
@@ -172,6 +187,35 @@ export default function GaleriClient({ items: galleryItems }: { items: GalleryIt
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [lightboxItem]);
+
+  // Upload dari galeri publik — API existing (V0.2.1)
+  async function handleUpload(e: React.FormEvent) {
+    e.preventDefault();
+    if (!uploadFile) return;
+    setUploading(true);
+    setUploadMsg(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", uploadFile);
+      fd.append("title", uploadTitle);
+      fd.append("description", uploadDesc);
+      const res = await fetch("/api/gallery", { method: "POST", body: fd });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setUploadMsg({ ok: false, text: data.fields?.file || data.fields?.title || data.error || "Upload gagal." });
+        return;
+      }
+      setUploadMsg({ ok: true, text: "Foto terkirim! Tampil publik setelah disetujui moderator." });
+      setUploadFile(null);
+      setUploadTitle("");
+      setUploadDesc("");
+      if (uploadInputRef.current) uploadInputRef.current.value = "";
+    } catch {
+      setUploadMsg({ ok: false, text: "Tidak dapat terhubung ke server." });
+    } finally {
+      setUploading(false);
+    }
+  }
 
   return (
     <>
@@ -193,8 +237,75 @@ export default function GaleriClient({ items: galleryItems }: { items: GalleryIt
           <p className="page-desc">
             Dokumentasi kegiatan dan momen kelas yang tersimpan di sini.
           </p>
+          {canUpload && (
+            <button
+              className="galeri-upload-btn"
+              onClick={() => { setShowUpload(true); setUploadMsg(null); }}
+            >
+              + Tambahkan Foto
+            </button>
+          )}
         </div>
       </div>
+
+      {/* MODAL UPLOAD — mobile-friendly, API existing */}
+      {showUpload && (
+        <div className="lightbox-overlay" onClick={() => !uploading && setShowUpload(false)}>
+          <form
+            className="lightbox-inner galeri-upload-modal"
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={handleUpload}
+          >
+            <button
+              type="button"
+              className="lightbox-close"
+              onClick={() => setShowUpload(false)}
+              aria-label="Tutup"
+            >
+              ×
+            </button>
+            <h2 className="galeri-upload-title">Tambahkan Foto</h2>
+            <p className="galeri-upload-hint">
+              Foto akan tampil publik setelah disetujui moderator.
+            </p>
+            <input
+              ref={uploadInputRef}
+              type="file"
+              accept="image/*"
+              className="galeri-upload-input"
+              onChange={(e) => setUploadFile(e.target.files?.[0] ?? null)}
+              aria-label="Pilih foto"
+            />
+            <input
+              className="galeri-upload-field"
+              placeholder="Judul foto (wajib)"
+              value={uploadTitle}
+              onChange={(e) => setUploadTitle(e.target.value)}
+              maxLength={100}
+              required
+              minLength={3}
+              aria-label="Judul foto"
+            />
+            <textarea
+              className="galeri-upload-field"
+              placeholder="Deskripsi (opsional)"
+              value={uploadDesc}
+              onChange={(e) => setUploadDesc(e.target.value)}
+              maxLength={300}
+              rows={2}
+              aria-label="Deskripsi foto"
+            />
+            {uploadMsg && (
+              <p className={`galeri-upload-msg ${uploadMsg.ok ? "galeri-upload-msg--ok" : "galeri-upload-msg--err"}`} role="status">
+                {uploadMsg.text}
+              </p>
+            )}
+            <button type="submit" className="galeri-upload-submit" disabled={uploading || !uploadFile}>
+              {uploading ? "Mengunggah…" : "Kirim Foto"}
+            </button>
+          </form>
+        </div>
+      )}
 
       <div className="container page-body">
         {/* FILTER */}
@@ -389,6 +500,81 @@ export default function GaleriClient({ items: galleryItems }: { items: GalleryIt
         .gallery-item--featured .gallery-item-image .hx-photo-broken {
           aspect-ratio: 16/7;
         }
+
+        /* V0.2.1 — CTA upload di galeri publik (mobile-friendly) */
+        .galeri-upload-btn {
+          display: inline-block;
+          margin-top: 1rem;
+          padding: 0.625rem 1.25rem;
+          background: var(--color-primary);
+          color: #fff;
+          border: none;
+          border-radius: var(--radius-sm);
+          font-size: 0.85rem;
+          font-weight: 600;
+          cursor: pointer;
+          min-height: 44px; /* touch-target Android */
+        }
+        .galeri-upload-btn:active { transform: scale(0.98); }
+
+        .galeri-upload-modal {
+          max-width: 440px;
+          width: 100%;
+          display: flex;
+          flex-direction: column;
+          gap: 0.75rem;
+        }
+        .galeri-upload-title {
+          font-size: 1.05rem;
+          font-weight: 700;
+          color: var(--color-text);
+        }
+        .galeri-upload-hint {
+          font-size: 0.75rem;
+          color: var(--color-text-muted);
+          margin-top: -0.5rem;
+        }
+        .galeri-upload-input {
+          font-size: 0.8rem;
+          color: var(--color-text);
+        }
+        .galeri-upload-input::file-selector-button {
+          padding: 0.5rem 0.875rem;
+          margin-right: 0.75rem;
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-sm);
+          background: var(--color-surface);
+          color: var(--color-text);
+          font-size: 0.8rem;
+          min-height: 44px;
+          cursor: pointer;
+        }
+        .galeri-upload-field {
+          padding: 0.625rem 0.75rem;
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-sm);
+          background: var(--color-bg-alt);
+          color: var(--color-text);
+          font-size: 0.85rem;
+          min-height: 44px;
+          font-family: inherit;
+          resize: vertical;
+        }
+        .galeri-upload-msg { font-size: 0.8rem; }
+        .galeri-upload-msg--ok { color: var(--color-success); }
+        .galeri-upload-msg--err { color: var(--color-danger); }
+        .galeri-upload-submit {
+          padding: 0.75rem 1.25rem;
+          background: var(--color-primary);
+          color: #fff;
+          border: none;
+          border-radius: var(--radius-sm);
+          font-size: 0.9rem;
+          font-weight: 600;
+          cursor: pointer;
+          min-height: 48px;
+        }
+        .galeri-upload-submit:disabled { opacity: 0.55; cursor: not-allowed; }
 
         .gallery-item-image {
           border-radius: 8px;

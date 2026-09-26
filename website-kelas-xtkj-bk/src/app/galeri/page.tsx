@@ -5,6 +5,8 @@ import GaleriClient from "./GaleriClient";
 import type { GalleryItem } from "@/types";
 import { prisma } from "@/lib/prisma";
 import PublicLayout from "@/components/PublicLayout";
+import { getSessionUser } from "@/lib/session";
+import { can } from "@/lib/roles";
 
 export const metadata: Metadata = {
   title: "Galeri",
@@ -40,10 +42,15 @@ async function getGallery(): Promise<GalleryItem[]> {
 }
 
 export default async function GaleriPage() {
-  const items = await getGallery();
+  // MAINTENANCE V0.2.1 — CTA upload di galeri publik: hanya untuk login dengan
+  // gallery:upload (Developer/Wali/Murid). Server-side session check (bukan device).
+  // Memecahkan kasus mobile: murid mencari fitur di /galeri (jalur navigasi alami
+  // Beranda → Galeri), bukan di /dashboard/gallery.
+  const [items, user] = await Promise.all([getGallery(), getSessionUser()]);
+  const canUpload = user ? can(user.role, "gallery", "upload") : false;
   return (
     <PublicLayout>
-      <GaleriClient items={items} />
+      <GaleriClient items={items} canUpload={canUpload} />
     </PublicLayout>
   );
 }
