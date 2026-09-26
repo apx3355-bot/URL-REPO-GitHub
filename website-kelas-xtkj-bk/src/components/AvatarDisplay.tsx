@@ -21,6 +21,19 @@ const sizeMap = {
 // `photo` berisi base64 murni ATAU data URL lengkap — keduanya valid sebagai <img src>.
 // Jika foto ada tapi GAGAL dimuat (base64 rusak / file hilang), jatuh ke
 // inisial via onError — layout tidak rusak (ukuran tetap, object-fit cover).
+// Mime dideteksi dari magic bytes base64 (PNG/JPEG/WEBP) — upload mengizinkan
+// ketiganya, jadi TIDAK boleh diasumsikan JPEG (fallback lama merender PNG
+// dengan mime salah — beberapa browser menolak menampilkannya).
+function detectImageSrc(photo: string): string {
+  if (photo.startsWith("data:")) return photo;
+  const mime = photo.startsWith("iVBORw0")
+    ? "image/png"
+    : photo.startsWith("UklGR")
+      ? "image/webp"
+      : "image/jpeg";
+  return `data:${mime};base64,${photo}`;
+}
+
 export default function AvatarDisplay({
   name,
   photo,
@@ -33,7 +46,7 @@ export default function AvatarDisplay({
     return <MemberAvatar name={name} size={size} className={className} />;
   }
 
-  const src = photo.startsWith("data:") ? photo : `data:image/jpeg;base64,${photo}`;
+  const src = detectImageSrc(photo);
   const px = sizeMap[size];
 
   return (
