@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { classInfo } from "@/data/classInfo";
+import { getClassInfo } from "@/data/classInfo";
 import { BrandMark } from "@/components/Icons";
 
 const footerLinks = [
@@ -10,7 +10,10 @@ const footerLinks = [
   { href: "/tentang", label: "Tentang" },
 ];
 
-export default function Footer() {
+// Maintenance V0.1 — identitas footer mengikuti Settings (SSOT), bukan
+// konstanta statis; fallback aman saat DB gagal (getClassInfo handles it).
+export default async function Footer() {
+  const classInfo = await getClassInfo();
   const year = 2026;
 
   return (
@@ -64,7 +67,7 @@ export default function Footer() {
             &copy; {year} Kelas {classInfo.name}. Semua hak dilindungi.
           </p>
           <p className="footer-copy footer-copy--right">
-            Website resmi kelas X TKJ BK
+            Website resmi kelas {classInfo.name}
           </p>
         </div>
       </div>

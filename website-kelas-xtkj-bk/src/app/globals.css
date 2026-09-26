@@ -354,6 +354,8 @@ textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  /* 38px visual + area sentuh diperluas ke ~44px via ::after (mobile) */
+  position: relative;
   width: 38px;
   height: 38px;
   border-radius: 9999px;
@@ -363,6 +365,14 @@ textarea {
   cursor: pointer;
   flex-shrink: 0;
   transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+/* Area sentuh diperluas tanpa mengubah ukuran visual (tap ≥44px) */
+.hx-btn-circle::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 9999px;
 }
 
 .hx-btn-circle:hover:not(:disabled) {
@@ -631,6 +641,9 @@ textarea {
 }
 
 .hx-dot {
+  /* Maintenance V0.1: visual 8px, tapi hit-area 24×24px (WCAG 2.5.5 /
+     tap-target Android) — sentuhan titik kecil sering meleset di mobile */
+  position: relative;
   width: 8px;
   height: 8px;
   border-radius: 9999px;
@@ -639,6 +652,13 @@ textarea {
   padding: 0;
   cursor: pointer;
   transition: background 0.2s, transform 0.2s;
+}
+
+.hx-dot::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 9999px;
 }
 
 .hx-dot--active {
@@ -868,5 +888,51 @@ textarea {
   .hx-viewer-overlay {
     animation: none !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================
+   Maintenance V0.1 — Mobile interaction & perf
+   ============================================ */
+
+/* Hilangkan delay tap 300ms & highlight biru saat sentuh elemen interaktif */
+a,
+button,
+[role="button"],
+input[type="submit"],
+label[for] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ============================================
+   Route transition loading — feedback navigasi instan
+   (App Router menampilkan ini saat RSC fetch berjalan)
+   ============================================ */
+.route-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 200;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--color-accent),
+    transparent
+  );
+  background-size: 40% 100%;
+  background-repeat: no-repeat;
+  animation: routeProgress 1s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes routeProgress {
+  0% {
+    background-position: -40% 0;
+  }
+  100% {
+    background-position: 140% 0;
   }
 }

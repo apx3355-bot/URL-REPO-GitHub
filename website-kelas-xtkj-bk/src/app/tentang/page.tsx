@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import PublicLayout from "@/components/PublicLayout";
-import { classInfo } from "@/data/classInfo";
+import { classInfo, getClassInfo, getEditableContent } from "@/data/classInfo";
 
 export const metadata: Metadata = {
   title: "Tentang",
@@ -17,7 +17,13 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default function TentangPage() {
+// Maintenance V0.1 — halaman ini tidak lagi menampilkan teks statis lama:
+// identitas kelas & jumlah anggota mengikuti database/Settings (dinamis),
+// deskripsi kelas/website & catatan kontak diedit Developer/Wali Kelas
+// lewat dashboard Settings (konten editorial).
+export default async function TentangPage() {
+  const [info, content] = await Promise.all([getClassInfo(), getEditableContent()]);
+
   return (
     <PublicLayout>
       <div className="page-header">
@@ -29,7 +35,7 @@ export default function TentangPage() {
           </nav>
           <h1 className="page-title">Tentang Kelas</h1>
           <p className="page-desc">
-            Informasi kelas {classInfo.name} dan website ini.
+            Informasi kelas {info.name} dan website ini.
           </p>
         </div>
       </div>
@@ -40,63 +46,40 @@ export default function TentangPage() {
           <section className="about-section">
             <h2 className="section-title">Identitas Kelas</h2>
             <dl className="info-list">
-              <InfoRow label="Nama Kelas" value={classInfo.name} />
-              <InfoRow label="Program Keahlian" value={classInfo.jurusan} />
-              <InfoRow label="Wali Kelas" value={classInfo.waliKelas} />
-              <InfoRow label="Tahun Ajaran" value={classInfo.tahunAjaran} />
-              <InfoRow label="Jumlah Siswa" value={`${classInfo.totalAnggota} siswa`} />
-              <InfoRow label="Sekolah" value={classInfo.sekolah} />
-              <InfoRow label="Angkatan" value={classInfo.angkatan} />
+              <InfoRow label="Nama Kelas" value={info.name} />
+              <InfoRow label="Program Keahlian" value={info.jurusan} />
+              <InfoRow label="Wali Kelas" value={info.waliKelas} />
+              <InfoRow label="Tahun Ajaran" value={info.tahunAjaran} />
+              <InfoRow label="Jumlah Siswa" value={`${info.totalAnggota} siswa`} />
+              <InfoRow label="Sekolah" value={info.sekolah} />
+              <InfoRow label="Angkatan" value={info.angkatan} />
             </dl>
           </section>
 
-          {/* DESKRIPSI */}
+          {/* DESKRIPSI (editable via dashboard) */}
           <section className="about-section">
-            <h2 className="section-title">Tentang Kelas X TKJ BK</h2>
+            <h2 className="section-title">Tentang Kelas {info.name}</h2>
             <div className="prose">
-              <p>
-                Kelas X TKJ BK merupakan bagian dari program keahlian Teknik
-                Komputer dan Jaringan. Program ini mempersiapkan siswa untuk
-                memahami dan menguasai berbagai aspek teknis di bidang komputer
-                dan infrastruktur jaringan.
-              </p>
-              <p>
-                Selama masa pembelajaran, siswa mendapatkan pengalaman praktis
-                melalui kegiatan laboratorium, mulai dari instalasi sistem
-                operasi, konfigurasi jaringan, hingga pemeliharaan perangkat
-                keras dan perangkat lunak.
-              </p>
-              <p>
-                Kelas ini terdiri dari {classInfo.totalAnggota} siswa yang aktif
-                belajar dan berkembang bersama sepanjang tahun ajaran{" "}
-                {classInfo.tahunAjaran}.
-              </p>
+              {content.classDescription.split("\n").filter(Boolean).map((para, i) => (
+                <p key={i}>{para}</p>
+              ))}
             </div>
           </section>
 
-          {/* TENTANG WEBSITE */}
+          {/* TENTANG WEBSITE (editable via dashboard) */}
           <section className="about-section">
             <h2 className="section-title">Tentang Website Ini</h2>
             <div className="prose">
-              <p>
-                Website ini dibangun sebagai portal informasi resmi kelas X TKJ
-                BK. Tujuan utamanya adalah menyediakan satu tempat terpusat
-                untuk melihat informasi tentang kelas, anggota, dokumentasi
-                kegiatan, dan struktur organisasi.
-              </p>
-              <p>
-                Website dapat diakses oleh siapa saja tanpa perlu membuat akun.
-                Untuk fitur lanjutan seperti pembaruan data dan pengelolaan
-                konten, akan tersedia melalui sistem login pada tahap
-                pengembangan berikutnya.
-              </p>
+              {content.websiteDescription.split("\n").filter(Boolean).map((para, i) => (
+                <p key={i}>{para}</p>
+              ))}
             </div>
 
             <div className="feature-list">
               {[
                 { title: "Informasi Kelas", desc: "Identitas dan data dasar kelas yang dapat diakses publik." },
                 { title: "Daftar Anggota", desc: "Seluruh anggota kelas dengan fitur pencarian sederhana." },
-                { title: "Galeri Kegiatan", desc: "Dokumentasi foto kegiatan dengan filter kategori." },
+                { title: "Galeri Kegiatan", desc: "Dokumentasi foto kegiatan dengan moderasi dan penyimpanan durabel." },
                 { title: "Struktur Organisasi", desc: "Susunan pengurus kelas secara visual dan tabel." },
               ].map((f) => (
                 <div key={f.title} className="feature-item">
@@ -107,7 +90,7 @@ export default function TentangPage() {
             </div>
           </section>
 
-          {/* PLACEHOLDER KONTAK */}
+          {/* KONTAK (catatan editable via dashboard) */}
           <section className="about-section">
             <h2 className="section-title">Kontak</h2>
             <div className="prose">
@@ -117,10 +100,7 @@ export default function TentangPage() {
               </p>
             </div>
             <div className="contact-note">
-              <p className="contact-note-text">
-                Informasi kontak lengkap akan ditambahkan setelah koordinasi
-                dengan pihak sekolah.
-              </p>
+              <p className="contact-note-text">{content.contactNote}</p>
             </div>
           </section>
         </div>

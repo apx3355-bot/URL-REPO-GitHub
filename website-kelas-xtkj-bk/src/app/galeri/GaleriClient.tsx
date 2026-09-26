@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import PublicLayout from "@/components/PublicLayout";
-import GalleryPlaceholder from "@/components/GalleryPlaceholder";
+import PhotoImg from "@/components/home/PhotoImg";
 import type { GalleryCategory, GalleryItem } from "@/types";
 
 const ALL = "Semua";
@@ -55,11 +54,7 @@ function LightboxModal({
           ×
         </button>
         <div className="lightbox-image">
-          <GalleryPlaceholder
-            title={item.title}
-            category={item.category}
-            index={item.id}
-          />
+          <PhotoImg src={item.image} alt={item.title} eager />
         </div>
         <div className="lightbox-info">
           <span className="lightbox-category">{item.category}</span>
@@ -114,8 +109,12 @@ function LightboxModal({
 
         .lightbox-close:hover { background: rgba(0,0,0,0.6); }
 
+        .lightbox-image img,
         .lightbox-image > div {
+          width: 100%;
           aspect-ratio: 16/9;
+          object-fit: cover;
+          display: block;
           border-radius: 0;
         }
 
@@ -164,8 +163,18 @@ export default function GaleriClient({ items: galleryItems }: { items: GalleryIt
     return galleryItems.filter((g) => g.category === activeCategory);
   }, [activeCategory, galleryItems]);
 
+  // Tutup lightbox dengan tombol Escape (desktop) — gap Phase 13
+  useEffect(() => {
+    if (!lightboxItem) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightboxItem(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightboxItem]);
+
   return (
-    <PublicLayout>
+    <>
       {lightboxItem && (
         <LightboxModal
           item={lightboxItem}
@@ -213,11 +222,7 @@ export default function GaleriClient({ items: galleryItems }: { items: GalleryIt
                 aria-label={`Lihat foto: ${item.title}`}
               >
                 <div className="gallery-item-image">
-                  <GalleryPlaceholder
-                    title={item.title}
-                    category={item.category}
-                    index={i}
-                  />
+                  <PhotoImg src={item.image} alt={item.title} />
                 </div>
                 <div className="gallery-item-info">
                   <span className="gallery-item-category">{item.category}</span>
@@ -372,6 +377,19 @@ export default function GaleriClient({ items: galleryItems }: { items: GalleryIt
           aspect-ratio: 16/7;
         }
 
+        .gallery-item-image img,
+        .gallery-item-image .hx-photo-broken {
+          width: 100%;
+          aspect-ratio: 4/3;
+          object-fit: cover;
+          display: block;
+        }
+
+        .gallery-item--featured .gallery-item-image img,
+        .gallery-item--featured .gallery-item-image .hx-photo-broken {
+          aspect-ratio: 16/7;
+        }
+
         .gallery-item-image {
           border-radius: 8px;
           overflow: hidden;
@@ -489,6 +507,6 @@ export default function GaleriClient({ items: galleryItems }: { items: GalleryIt
           .container { padding: 0 2.5rem; }
         }
       `}</style>
-    </PublicLayout>
+    </>
   );
 }

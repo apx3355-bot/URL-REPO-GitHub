@@ -51,7 +51,10 @@ const PERMISSIONS: Record<Role, Record<string, PermissionAction[]>> = {
     // (upload tetap masuk PENDING → dimoderasi sesuai alur Phase 5)
     gallery: ["read", "moderate", "upload"],
     profile: ["read", "update"],
-    settings: [],
+    // MAINTENANCE V0.1: Wali Kelas = pengelola kelas — mengubah Snapshot
+    // (kuota anggota), identitas kelas, dan konten editorial via dashboard
+    // Settings. Registrasi akun tetap ada di UI (validasi backend sama).
+    settings: ["read", "update"],
     // Diskusi: ikut serta + moderasi konten siapa pun
     discussions: ["read", "create", "delete", "moderate"],
     // Agenda: mengelola kegiatan kelas

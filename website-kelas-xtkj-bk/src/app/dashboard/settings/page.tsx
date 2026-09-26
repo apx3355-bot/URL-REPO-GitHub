@@ -7,6 +7,21 @@ interface SettingsData {
   memberQuotaMax: number;
   registrationOpen: boolean;
 }
+// Maintenance V0.1 — identitas kelas & konten editorial (kosong = default)
+interface IdentityData {
+  className: string;
+  classJurusan: string;
+  classWaliKelas: string;
+  classTahunAjaran: string;
+  classSekolah: string;
+  classAngkatan: string;
+}
+
+interface ContentData {
+  classDescription: string;
+  websiteDescription: string;
+  contactNote: string;
+}
 
 interface QuotaInfo {
   max: number;
@@ -24,15 +39,26 @@ export default function SettingsPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [forbidden, setForbidden] = useState(false);
   const [confirmSave, setConfirmSave] = useState(false);
+  const [identity, setIdentity] = useState<IdentityData | null>(null);
+  const [content, setContent] = useState<ContentData | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const isDeveloper = userRole === "DEVELOPER";
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await fetch("/api/settings");
+      // Role untuk gating UI (registrasi = Developer saja, divalidasi backend)
+      fetch("/api/auth/me")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => setUserRole(d?.user?.role ?? null))
+        .catch(() => {});
       if (res.ok) {
         const data = await res.json();
         setSettings(data.settings);
+        setIdentity(data.identity ?? null);
+        setContent(data.content ?? null);
         // Kuota ambil dari statistik dashboard (endpoint sama, resource settings+stats)
         const statsRes = await fetch("/api/stats");
         if (statsRes.ok) {
@@ -70,7 +96,11 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           memberQuotaMax: settings.memberQuotaMax,
-          registrationOpen: settings.registrationOpen,
+          // registrationOpen hanya dikirim Developer — backend juga menolak
+          // field ini dari non-Developer (validasi ganda UI+API)
+          ...(isDeveloper ? { registrationOpen: settings.registrationOpen } : {}),
+          ...(identity ? { identity } : {}),
+          ...(content ? { content } : {}),
         }),
       });
       const data = await res.json();
@@ -94,7 +124,7 @@ export default function SettingsPage() {
         <div className="dash-page-header">
           <h1 className="dash-page-title">Settings</h1>
         </div>
-        <div className="dash-empty">Hanya Developer yang dapat mengakses halaman ini.</div>
+        <div className="dash-empty">Hanya Developer dan Wali Kelas yang dapat mengakses halaman ini.</div>
       </div>
     );
   }
@@ -170,7 +200,8 @@ export default function SettingsPage() {
         <p className="settings-hint">1–500. Perubahan berlaku langsung untuk pendaftaran baru.</p>
       </section>
 
-      {/* REGISTRASI */}
+      {/* REGISTRASI — Developer saja (backend menolak perubahan dari Wali) */}
+      {isDeveloper && (
       <section className="settings-section">
         <h2 className="settings-heading">Registrasi Publik</h2>
         <div className="settings-toggle-row">
@@ -197,6 +228,76 @@ export default function SettingsPage() {
           {settings.registrationOpen ? "✓ Pendaftaran terbuka" : "✕ Pendaftaran ditutup"}
         </p>
       </section>
+      )}
+
+      {/* IDENTITAS KELAS — dinamis: beranda/tentang/footer otomatis mengikuti */}
+      {identity && (
+        <section className="settings-section">
+          <h2 className="settings-heading">Identitas Kelas</h2>
+          <p className="settings-hint" style={{ marginBottom: "0.875rem" }}>
+            Data faktual yang ditampilkan di beranda, halaman Tentang, dan footer.
+            Jumlah anggota mengikuti kuota di atas. Kosongkan untuk memakai default.
+          </p>
+          <div className="settings-grid2">
+            {([
+              ["className", "Nama Kelas", "X TKJ BK"],
+              ["classJurusan", "Jurusan", "Teknik Komputer dan Jaringan"],
+              ["classWaliKelas", "Wali Kelas", "Moh. Fadhil"],
+              ["classTahunAjaran", "Tahun Ajaran", "2025/2026"],
+              ["classSekolah", "Sekolah", "SMK Bala Keselamatan Palu"],
+              ["classAngkatan", "Angkatan", "2025"],
+            ] as const).map(([prop, label, placeholder]) => (
+              <div key={prop}>
+                <label className="settings-label" htmlFor={`identity-${prop}`}>
+                  {label}
+                </label>
+                <input
+                  id={`identity-${prop}`}
+                  type="text"
+                  className="dash-input"
+                  value={identity[prop]}
+                  placeholder={placeholder}
+                  onChange={(e) =>
+                    setIdentity({ ...identity, [prop]: e.target.value })
+                  }
+                  disabled={saving}
+                />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* KONTEN EDITABLE — deskripsi & catatan kontak */}
+      {content && (
+        <section className="settings-section">
+          <h2 className="settings-heading">Konten Deskriptif</h2>
+          <p className="settings-hint" style={{ marginBottom: "0.875rem" }}>
+            Konten editorial beranda & halaman Tentang. Kosongkan untuk memakai
+            teks default. Baris kosong memisahkan paragraf.
+          </p>
+          {([
+            ["classDescription", "Deskripsi Kelas", 4],
+            ["websiteDescription", "Deskripsi Website", 4],
+            ["contactNote", "Catatan Kontak", 2],
+          ] as const).map(([prop, label, rows]) => (
+            <div key={prop} style={{ marginBottom: "0.875rem" }}>
+              <label className="settings-label" htmlFor={`content-${prop}`}>
+                {label}
+              </label>
+              <textarea
+                id={`content-${prop}`}
+                className="dash-input"
+                rows={rows}
+                value={content[prop]}
+                onChange={(e) => setContent({ ...content, [prop]: e.target.value })}
+                disabled={saving}
+              />
+            </div>
+          ))}
+        </section>
+        
+      )}
 
       <div className="settings-actions">
         <button
@@ -214,9 +315,14 @@ export default function SettingsPage() {
           <div className="settings-modal">
             <h3 className="settings-modal-title">Simpan perubahan?</h3>
             <p className="settings-modal-text">
-              Kuota: <strong>{settings.memberQuotaMax}</strong> · Registrasi:{" "}
-              <strong>{settings.registrationOpen ? "terbuka" : "ditutup"}</strong>. Semua perubahan
-              tercatat di Activity Log.
+              Kuota: <strong>{settings.memberQuotaMax}</strong>
+              {isDeveloper && (
+                <>
+                  {" "}
+                  · Registrasi: <strong>{settings.registrationOpen ? "terbuka" : "ditutup"}</strong>
+                </>
+              )}
+              . Semua perubahan tercatat di Activity Log.
             </p>
             <div className="settings-modal-actions">
               <button className="dash-btn" onClick={() => setConfirmSave(false)} disabled={saving}>
@@ -374,6 +480,28 @@ export default function SettingsPage() {
         .settings-actions {
           display: flex;
           justify-content: flex-end;
+        }
+
+        /* Grid 2 kolom untuk form identitas (1 kolom di layar kecil) */
+        .settings-grid2 {
+          display: grid;
+          grid-template-columns: 1fr;
+          gap: 0.875rem;
+        }
+
+        @media (min-width: 640px) {
+          .settings-grid2 {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.875rem 1rem;
+          }
+        }
+
+        /* Textarea konten lebih lega */
+        textarea.dash-input {
+          width: 100%;
+          resize: vertical;
+          line-height: 1.6;
+          font-family: inherit;
         }
 
         .settings-overlay {

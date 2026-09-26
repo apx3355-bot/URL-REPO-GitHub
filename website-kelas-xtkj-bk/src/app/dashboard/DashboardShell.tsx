@@ -60,6 +60,7 @@ const MENUS: Record<string, NavItem[]> = {
     { href: "/dashboard/schedules", label: "Jadwal", icon: CalendarIcon },
     { href: "/dashboard/gallery", label: "Galeri", icon: UserIcon },
     { href: "/dashboard/profile", label: "Profil", icon: UserIcon },
+    { href: "/dashboard/settings", label: "Settings", icon: SettingsIcon },
   ],
   ANGGOTA: [
     { href: "/", label: "Beranda", icon: LayoutIcon },

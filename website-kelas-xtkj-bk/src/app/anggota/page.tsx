@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import { classInfo } from "@/data/classInfo";
+import { classInfo, getClassInfo } from "@/data/classInfo";
 import { classMembers as staticMembers } from "@/data/classMembers";
 import { prisma } from "@/lib/prisma";
+import PublicLayout from "@/components/PublicLayout";
 import AnggotaClient from "./AnggotaClient";
 import type { ClassMember } from "@/types";
 
@@ -39,5 +40,14 @@ async function getMembers(): Promise<ClassMember[]> {
 
 export default async function AnggotaPage() {
   const members = await getMembers();
-  return <AnggotaClient members={members} />;
+  // Jumlah anggota mengikuti konfigurasi (Settings) — bukan angka hardcoded
+  const info = await getClassInfo();
+  return (
+    <PublicLayout>
+      <AnggotaClient
+        members={members}
+        totalLabel={`${info.totalAnggota} siswa kelas ${info.name} tahun ajaran ${info.tahunAjaran}.`}
+      />
+    </PublicLayout>
+  );
 }

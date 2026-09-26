@@ -3,11 +3,18 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import AvatarDisplay from "@/components/AvatarDisplay";
-import PublicLayout from "@/components/PublicLayout";
 import { classInfo } from "@/data/classInfo";
 import type { ClassMember } from "@/types";
 
-export default function AnggotaClient({ members: classMembers }: { members: ClassMember[] }) {
+// Maintenance V0.1 — totalLabel dari Settings (SSOT) via page.tsx,
+// bukan classInfo statis, agar perubahan kuota langsung tercermin.
+export default function AnggotaClient({
+  members: classMembers,
+  totalLabel,
+}: {
+  members: ClassMember[];
+  totalLabel?: string;
+}) {
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(() => {
@@ -24,7 +31,7 @@ export default function AnggotaClient({ members: classMembers }: { members: Clas
   const regular = filtered.filter((m) => !m.position);
 
   return (
-    <PublicLayout>
+    <>
       <div className="page-header">
         <div className="container">
           <nav className="breadcrumb" aria-label="Breadcrumb">
@@ -34,7 +41,8 @@ export default function AnggotaClient({ members: classMembers }: { members: Clas
           </nav>
           <h1 className="page-title">Anggota Kelas</h1>
           <p className="page-desc">
-            {classInfo.totalAnggota} siswa kelas {classInfo.name} tahun ajaran {classInfo.tahunAjaran}.
+            {totalLabel ??
+              `${classMembers.length} anggota kelas ${classInfo.name} tahun ajaran ${classInfo.tahunAjaran}.`}
           </p>
         </div>
       </div>
@@ -393,6 +401,6 @@ export default function AnggotaClient({ members: classMembers }: { members: Clas
           .container { padding: 0 2.5rem; }
         }
       `}</style>
-    </PublicLayout>
+    </>
   );
 }

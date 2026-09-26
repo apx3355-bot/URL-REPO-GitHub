@@ -8,6 +8,17 @@ import { prisma } from "@/lib/prisma";
 export const SETTING_KEYS = {
   MEMBER_QUOTA_MAX: "member_quota_max",
   REGISTRATION_OPEN: "registration_open",
+  // Maintenance V0.1 — identitas kelas & konten editorial (non-secret,
+  // diedit Developer via dashboard Settings; fallback di data/classInfo.ts)
+  CLASS_NAME: "class_name",
+  CLASS_JURUSAN: "class_jurusan",
+  CLASS_WALI_KELAS: "class_wali_kelas",
+  CLASS_TAHUN_AJARAN: "class_tahun_ajaran",
+  CLASS_SEKOLAH: "class_sekolah",
+  CLASS_ANGKATAN: "class_angkatan",
+  CONTENT_CLASS_DESCRIPTION: "content_class_description",
+  CONTENT_WEBSITE_DESCRIPTION: "content_website_description",
+  CONTENT_CONTACT_NOTE: "content_contact_note",
 } as const;
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS];

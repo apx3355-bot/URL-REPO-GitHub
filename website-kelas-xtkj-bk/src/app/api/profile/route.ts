@@ -92,6 +92,12 @@ export async function PUT(request: Request) {
 
     const usernameChanged = newUsername !== guard.user.username;
 
+    // Maintenance V0.1 — sinkronisasi identitas SELALU: nama ClassMember
+    // ter-link mengikuti profil anggota (satu sumber kebenaran = profil).
+    // Brief: perubahan profil harus langsung tercermin di daftar anggota/
+    // carousel beranda tanpa duplikasi data. Jabatan/foto member tidak disentuh.
+    const shouldSyncMemberName = fullName.trim().length >= 2;
+
     // Transaksi interaktif — destruktur posisi (const [, profile]) rapuh:
     // saat username tidak berubah spread menambah 0 elemen sehingga upsert
     // bergeser ke index 0 dan destruktur menghasilkan undefined.
@@ -99,6 +105,13 @@ export async function PUT(request: Request) {
       if (usernameChanged) {
         // Username adalah identifier login → update User, bukan Profile
         await tx.user.update({ where: { id: guard.user.id }, data: { username: newUsername } });
+      }
+      // Sinkronkan nama member placeholder → nama profil aktual (Maintenance V0.1)
+      if (shouldSyncMemberName) {
+        await tx.classMember.update({
+          where: { userId: guard.user.id },
+          data: { fullName },
+        });
       }
       return tx.profile.upsert({
         where: { userId: guard.user.id },

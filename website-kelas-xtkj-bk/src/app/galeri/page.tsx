@@ -4,6 +4,7 @@ import { galleryItems as staticItems } from "@/data/gallery";
 import GaleriClient from "./GaleriClient";
 import type { GalleryItem } from "@/types";
 import { prisma } from "@/lib/prisma";
+import PublicLayout from "@/components/PublicLayout";
 
 export const metadata: Metadata = {
   title: "Galeri",
@@ -40,5 +41,9 @@ async function getGallery(): Promise<GalleryItem[]> {
 
 export default async function GaleriPage() {
   const items = await getGallery();
-  return <GaleriClient items={items} />;
+  return (
+    <PublicLayout>
+      <GaleriClient items={items} />
+    </PublicLayout>
+  );
 }

@@ -8,7 +8,7 @@ import MemberCarousel from "@/components/home/MemberCarousel";
 import NetworkBackground from "@/components/home/NetworkBackground";
 import HomeGallery from "@/components/home/HomeGallery";
 import { BrandMark } from "@/components/Icons";
-import { classInfo } from "@/data/classInfo";
+import { getClassInfo, getEditableContent } from "@/data/classInfo";
 import { prisma } from "@/lib/prisma";
 import type { ClassMember } from "@/types";
 import type { ViewerPhoto } from "@/components/home/PhotoViewer";
@@ -65,11 +65,22 @@ async function getGalleryPhotos(): Promise<ViewerPhoto[]> {
 }
 
 export default async function HomePage() {
-  const [dbMembers, photos] = await Promise.all([getMembers(), getGalleryPhotos()]);
+  // Maintenance V0.1 — identitas & jumlah anggota dari Settings (SSOT);
+  // konten editorial (deskripsi kelas/website) dari Setting editable.
+  const [dbMembers, photos, info, content] = await Promise.all([
+    getMembers(),
+    getGalleryPhotos(),
+    getClassInfo(),
+    getEditableContent(),
+  ]);
 
   // Member slider: data DB; jika DB kosong → tampilkan 0 kartu dengan
   // pesan fallback (bukan membuat profil palsu).
   const members = dbMembers;
+  // Nama kelas dinamis — kata terakhir diberi aksen warna (pola brand existing)
+  const nameWords = info.name.split(" ").filter(Boolean);
+  const accentWord = nameWords.length > 1 ? nameWords[nameWords.length - 1] : null;
+  const headWords = accentWord ? nameWords.slice(0, -1) : nameWords;
 
   return (
     <PublicLayout>
@@ -84,14 +95,15 @@ export default async function HomePage() {
             <div className="hx-hero-row">
               <HeroBrand />
               <div className="hx-hero-text hx-enter" style={{ animationDelay: "0.1s" }}>
-                <p className="hero-label">Kelas {classInfo.tahunAjaran}</p>
+                <p className="hero-label">Tahun Ajaran {info.tahunAjaran}</p>
                 <h1 className="hero-title hx-enter" style={{ animationDelay: "0.18s", opacity: 0 }}>
-                  X TKJ <span className="hero-accent">BK</span>
+                  {headWords.join(" ")}{headWords.length > 0 ? " " : ""}
+                  {accentWord ? <span className="hero-accent">{accentWord}</span> : null}
                 </h1>
               </div>
             </div>
             <p className="hero-jurusan hx-enter" style={{ animationDelay: "0.26s", opacity: 0 }}>
-              Teknik Komputer dan Jaringan
+              {info.jurusan}
             </p>
             <p className="hero-tagline hx-enter" style={{ animationDelay: "0.32s", opacity: 0 }} aria-label="Tagline kelas">
               &ldquo;Connect. Configure. Create.&rdquo;
@@ -124,12 +136,12 @@ export default async function HomePage() {
           />
           <div className="snapshot-grid">
             {[
-              { label: "Nama Kelas", value: classInfo.name },
-              { label: "Jurusan", value: classInfo.jurusan },
-              { label: "Wali Kelas", value: classInfo.waliKelas },
-              { label: "Tahun Ajaran", value: classInfo.tahunAjaran },
-              { label: "Jumlah Anggota", value: `${classInfo.totalAnggota} siswa` },
-              { label: "Sekolah", value: classInfo.sekolah },
+              { label: "Nama Kelas", value: info.name },
+              { label: "Jurusan", value: info.jurusan },
+              { label: "Wali Kelas", value: info.waliKelas },
+              { label: "Tahun Ajaran", value: info.tahunAjaran },
+              { label: "Jumlah Anggota", value: `${info.totalAnggota} siswa` },
+              { label: "Sekolah", value: info.sekolah },
             ].map((item) => (
               <div key={item.label} className="snapshot-item">
                 <span className="snapshot-label">{item.label}</span>
@@ -200,27 +212,17 @@ export default async function HomePage() {
             <div className="about-strip-text">
               <SectionHeading
                 label="Tentang Kelas"
-                title="Siapa Kelas X TKJ BK?"
+                title={`Siapa Kelas ${info.name}?`}
               />
-              <p className="about-body">
-                Kelas X TKJ BK adalah bagian dari program keahlian Teknik
-                Komputer dan Jaringan. Di sini, kami belajar tentang
-                infrastruktur jaringan, instalasi sistem, dan berbagai
-                keterampilan teknis yang dibutuhkan di dunia kerja maupun
-                pendidikan lanjutan.
-              </p>
-              <p className="about-body">
-                Website ini dibangun untuk memudahkan informasi kelas — dari
-                daftar anggota, struktur organisasi, hingga dokumentasi
-                kegiatan — dapat diakses oleh semua pihak yang berkepentingan.
-              </p>
+              <p className="about-body">{content.classDescription}</p>
+              <p className="about-body">{content.websiteDescription}</p>
               <Link href="/tentang" className="btn-outline" style={{ marginTop: "1.5rem", display: "inline-block" }}>
                 Baca Selengkapnya
               </Link>
             </div>
             <div className="about-strip-visual">
               <div className="about-visual-block">
-                <span className="about-visual-number">{classInfo.totalAnggota}</span>
+                <span className="about-visual-number">{info.totalAnggota}</span>
                 <span className="about-visual-label">Siswa aktif</span>
               </div>
               <div className="about-visual-block">

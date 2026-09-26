@@ -32,6 +32,8 @@ export default function Navbar() {
     };
   }, [pathname]);
 
+
+
   return (
     <header className="navbar">
       <div className="navbar-inner">
@@ -69,6 +71,7 @@ export default function Navbar() {
             {loggedIn ? "Dashboard" : "Masuk"}
           </Link>
           <button
+            type="button"
             className="mobile-toggle"
             aria-label={open ? "Tutup menu" : "Buka menu"}
             aria-expanded={open}
@@ -127,6 +130,18 @@ export default function Navbar() {
           background: var(--color-navbar);
           backdrop-filter: blur(10px);
           border-bottom: 1px solid var(--color-border);
+        }
+
+        /* Maintenance V0.1 — respons sentuh: hilangkan delay 300ms bawaan
+           browser (tap highlight & double-tap zoom) pada elemen interaktif */
+        .navbar a,
+        .navbar button {
+          touch-action: manipulation;
+          -webkit-tap-highlight-color: transparent;
+        }
+
+        .mobile-toggle:active {
+          background: var(--color-surface-hover);
         }
 
         .navbar-inner {
@@ -219,7 +234,8 @@ export default function Navbar() {
           border-radius: var(--radius-sm);
           border: 1px solid var(--color-border);
           background: transparent;
-          transition: background 0.15s;
+          /* Tanpa delay: transisi hanya warna, bukan layout; feedback :active instan */
+          transition: background 0s;
         }
 
         .mobile-toggle:hover {
@@ -262,6 +278,16 @@ export default function Navbar() {
           flex-direction: column;
           gap: 0.125rem;
           background: var(--color-background);
+          /* Buka/tutup instan — tanpa animasi tinggi (re-layout = jank) */
+          will-change: auto;
+        }
+
+        /* Maintenance V0.1 — link menu harus bertumpuk vertikal (bug:
+           <a> inline mengalir menyamping & membungkus di layar sempit) */
+        .mobile-menu nav {
+          display: flex;
+          flex-direction: column;
+          gap: 0.125rem;
         }
 
         .mobile-menu--open {
@@ -269,12 +295,19 @@ export default function Navbar() {
         }
 
         .mobile-nav-link {
-          padding: 0.625rem 0.75rem;
+          /* Tap-target ≥44px di mobile (maintenance V0.1) */
+          display: block;
+          padding: 0.8rem 0.75rem;
           font-size: 0.9rem;
           color: var(--color-text-muted);
           border-radius: var(--radius-sm);
           font-weight: 450;
-          transition: color 0.15s, background 0.15s;
+          transition: color 0s, background 0s;
+        }
+
+        .mobile-nav-link:active {
+          color: var(--color-text);
+          background: var(--color-surface-hover);
         }
 
         .mobile-nav-link:hover {

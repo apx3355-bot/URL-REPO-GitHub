@@ -1,19 +1,18 @@
 import { getSessionUser } from "@/lib/session";
-import type { ReactNode } from "react";
+import { can } from "@/lib/roles";
+import { redirect } from "next/navigation";
 
-// Guard server-side: halaman Settings hanya untuk DEVELOPER.
-// Menu hiding saja tidak cukup — akses langsung via URL tetap ditolak di sini.
-export default async function SettingsLayout({ children }: { children: ReactNode }) {
+// Maintenance V0.1 — gate server-side: halaman Settings hanya untuk role
+// dengan settings.read (Developer & Wali Kelas). API sudah 403, layout ini
+// mencegah shell halaman terbuka untuk role lain (layout x-invoke-path lama
+// tidak pernah aktif di Next 15).
+export default async function SettingsLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const user = await getSessionUser();
-  if (!user || user.role !== "DEVELOPER") {
-    return (
-      <div className="guard-denied">
-        <p className="guard-denied-title">ACCESS DENIED</p>
-        <p className="guard-denied-text">
-          Anda tidak memiliki permission untuk mengakses halaman ini.
-        </p>
-      </div>
-    );
-  }
+  if (!user) redirect("/login?next=/dashboard/settings");
+  if (!can(user.role, "settings", "read")) redirect("/dashboard");
   return <>{children}</>;
 }
