@@ -115,6 +115,17 @@ export async function POST(request: Request) {
               nisn: nisn || null,
             },
           },
+          // MAINTENANCE V0.2 — Automatic Class Membership: murid baru langsung
+          // masuk daftar Anggota Kelas (satu sumber kebenaran = ClassMember).
+          // Atomic dalam transaksi yang sama: gagal membership = rollback user
+          // + profile, tidak ada kondisi "auth berhasil → membership gagal".
+          // Proteksi duplikat: ClassMember.userId @unique di level database.
+          member: {
+            create: {
+              fullName,
+              nisn: nisn || null,
+            },
+          },
         },
         select: { id: true, username: true, role: true },
       });
