@@ -27,6 +27,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 export default function GalleryPage() {
   const [mine, setMine] = useState<GalleryItem[]>([]);
+  const [all, setAll] = useState<GalleryItem[]>([]);
   const [queue, setQueue] = useState<GalleryItem[]>([]);
   const [me, setMe] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,9 +62,11 @@ export default function GalleryPage() {
         fetch("/api/auth/me"),
         fetch("/api/gallery?mine=1"),
       ]);
+      let role: Me["role"] | null = null;
       if (meRes.ok) {
         const data = await meRes.json();
         setMe(data.user);
+        role = data.user?.role ?? null;
       }
       if (mineRes.ok) {
         const data = await mineRes.json();
@@ -72,11 +75,20 @@ export default function GalleryPage() {
         window.location.href = "/login?next=/dashboard/gallery";
         return;
       }
-      // Moderators load queue
-      const modRes = await fetch("/api/gallery/moderation");
-      if (modRes.ok) {
-        const data = await modRes.json();
-        setQueue(data.items);
+      // Moderators: antrian moderasi + semua foto (Gallery Management)
+      if (role === "DEVELOPER" || role === "WALI_KELAS") {
+        const [modRes, allRes] = await Promise.all([
+          fetch("/api/gallery/moderation"),
+          fetch("/api/gallery/all"),
+        ]);
+        if (modRes.ok) {
+          const data = await modRes.json();
+          setQueue(data.items);
+        }
+        if (allRes.ok) {
+          const data = await allRes.json();
+          setAll(data.items);
+        }
       }
     } catch {
       setError("Tidak dapat memuat data.");
@@ -249,7 +261,7 @@ export default function GalleryPage() {
                 {mine.map((item) => (
                   <div key={item.id} className="mod-card">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={item.imagePath} alt={item.title} className="mod-img" loading="lazy" />
+                    <img src={imgSrc(item)} alt={item.title} className="mod-img" loading="lazy" />
                     <div className="mod-info">
                       <p className="mod-title">{item.title}</p>
                       <span className={`dash-status dash-status--${item.status.toLowerCase()}`}>
@@ -266,6 +278,67 @@ export default function GalleryPage() {
               </div>
             )}
           </div>
+
+          {/* SEMUA FOTO GALERI — Gallery Management moderator */}
+          {isModerator && (
+            <div className="dash-section" style={{ marginTop: "2.5rem" }}>
+              <h2 className="dash-section-title">Semua Foto Galeri ({all.length})</h2>
+              {all.length === 0 ? (
+                <div className="dash-empty">Belum ada foto di galeri.</div>
+              ) : (
+                <div className="mod-grid">
+                  {all.map((item) => (
+                    <div key={item.id} className="mod-card">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={imgSrc(item)} alt={item.title} className="mod-img" loading="lazy" />
+                      <div className="mod-info">
+                        <p className="mod-title">{item.title}</p>
+                        {item.description && <p className="mod-desc">{item.description}</p>}
+                        <p className="mod-meta">
+                          oleh {item.user?.profile?.fullName ?? item.user?.username ?? "—"}
+                          {" · "}
+                          {new Date(item.createdAt).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                        </p>
+                        <span className={`dash-status dash-status--${item.status.toLowerCase()}`}>
+                          {STATUS_LABEL[item.status] ?? item.status}
+                        </span>
+                        <div className="mod-actions">
+                          {item.status === "PENDING" && (
+                            <>
+                              <button
+                                className="dash-btn dash-btn--sm"
+                                onClick={() => handleModerate(item.id, "approve")}
+                                disabled={moderating === item.id}
+                              >
+                                ✓ Setujui
+                              </button>
+                              <button
+                                className="dash-btn dash-btn--danger dash-btn--sm"
+                                onClick={() => handleModerate(item.id, "reject")}
+                                disabled={moderating === item.id}
+                              >
+                                ✕ Tolak
+                              </button>
+                            </>
+                          )}
+                          {/* Delete: Developer hapus semua (gallery:delete);
+                              pemilik foto menghapus miliknya via kartu yang sama */}
+                          {(me?.role === "DEVELOPER" || item.userId === me?.id) && (
+                            <button
+                              className="dash-btn dash-btn--secondary dash-btn--sm"
+                              onClick={() => handleDelete(item.id)}
+                            >
+                              Hapus
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </>
       )}
 
