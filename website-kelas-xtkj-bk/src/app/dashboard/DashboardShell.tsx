@@ -227,7 +227,9 @@ export default function DashboardShell({
             </svg>
           </button>
           <div className="topbar-actions">
-            <NotificationBell />
+            {/* Bell notifikasi khusus moderator (Wali Kelas & Developer) —
+                murid tidak punya antrian moderasi, jadi tidak diberi bell */}
+            {user.role !== "ANGGOTA" && <NotificationBell />}
           </div>
           <div className="topbar-user">
             <button

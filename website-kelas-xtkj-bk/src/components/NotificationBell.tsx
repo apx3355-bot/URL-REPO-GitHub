@@ -28,8 +28,12 @@ export default function NotificationBell() {
   const [unread, setUnread] = useState(0);
   const [loading, setLoading] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
+  // Ref (bukan state) agar interval tidak di-recreate saat tab berganti.
+  const visibleRef = useRef(true);
 
   const load = useCallback(async () => {
+    // Hemat: polling di-skip saat tab tidak terlihat (pola sama dgn PendingGalleryBadge)
+    if (!visibleRef.current) return;
     try {
       const res = await fetch("/api/notifications");
       if (!res.ok) return;
@@ -44,7 +48,15 @@ export default function NotificationBell() {
   useEffect(() => {
     load();
     const t = setInterval(load, POLL_MS);
-    return () => clearInterval(t);
+    const onVisible = () => {
+      visibleRef.current = document.visibilityState === "visible";
+      if (visibleRef.current) load();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [load]);
 
   useEffect(() => {
@@ -59,10 +71,12 @@ export default function NotificationBell() {
   async function markRead(id: number) {
     setItems((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
     setUnread((u) => Math.max(0, u - 1));
+    // keepalive: request selamat dari navigasi segera (klik notif -> link)
     await fetch("/api/notifications", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id }),
+      keepalive: true,
     }).catch(() => {});
   }
 
@@ -73,6 +87,7 @@ export default function NotificationBell() {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ all: true }),
+      keepalive: true,
     }).catch(() => {});
   }
 
@@ -90,7 +105,10 @@ export default function NotificationBell() {
         className="notif-btn"
         onClick={() => {
           setOpen((v) => !v);
-          if (!open) load();
+          if (!open) {
+            setLoading(true);
+            load().finally(() => setLoading(false));
+          }
         }}
         aria-label={`Notifikasi${unread > 0 ? `, ${unread} belum dibaca` : ""}`}
         aria-expanded={open}

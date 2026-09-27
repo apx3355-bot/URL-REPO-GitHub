@@ -7,6 +7,7 @@ import {
   logActivity,
   jsonError,
 } from "@/lib/api";
+import { notifyUsers } from "@/lib/notify";
 import {
   MAX_UPLOAD_BYTES,
   isAllowedMime,
@@ -120,6 +121,19 @@ export async function POST(request: Request) {
       userId: guard.user.id,
       action: "GALLERY_UPLOAD",
       description: `${guard.user.username} mengunggah foto "${title}" (menunggu moderasi)`,
+      targetType: "gallery",
+      targetId: item.id,
+    });
+
+    // Notifikasi in-app ke moderator (gallery:moderate) — foto baru masuk
+    // antrian moderasi. Fan-out terbatas + anti-duplikasi dari notifyUsers
+    // (excludeUserId mencegah self-notify saat moderator upload sendiri).
+    await notifyUsers({
+      roles: ["WALI_KELAS", "DEVELOPER"],
+      excludeUserId: guard.user.id,
+      type: "GALLERY",
+      message: `Anggota ${guard.user.fullName} mengunggah "${title}" — menunggu moderasi`,
+      link: "/dashboard/gallery",
       targetType: "gallery",
       targetId: item.id,
     });
