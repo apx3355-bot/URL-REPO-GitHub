@@ -4,7 +4,12 @@ import { DashCSS, WelcomeHeader, StatGrid, SectionTitle, formatDate } from "@/co
 
 interface Props {
   user: SessionUser;
-  stats: { members: number; announcements: number; schedules: number };
+  stats: {
+    members: number;
+    announcements: number;
+    schedules: number;
+    pendingGallery: number;
+  };
   announcements: {
     id: number;
     title: string;
@@ -53,6 +58,7 @@ export default function WaliKelasDashboard({ user, stats, announcements, schedul
           { label: "Anggota Kelas", value: stats.members },
           { label: "Pengumuman Aktif", value: stats.announcements },
           { label: "Item Jadwal", value: stats.schedules },
+          { label: "Pending Galeri", value: stats.pendingGallery },
         ]}
       />
 

@@ -21,6 +21,7 @@ import {
   ClipboardIcon,
 } from "@/components/Icons";
 import type { SessionUser } from "@/lib/session";
+import PendingGalleryBadge from "@/components/PendingGalleryBadge";
 
 interface NavItem {
   href: string;
@@ -115,6 +116,8 @@ export default function DashboardShell({
       <ul className="sidebar-menu">
         {menu.map((item) => {
           const Icon = item.icon;
+          const showPending =
+            (item.href === "/dashboard/gallery" && user.role !== "ANGGOTA");
           return (
             <li key={item.href}>
               <Link
@@ -125,6 +128,7 @@ export default function DashboardShell({
               >
                 <Icon size={15} />
                 {item.label}
+                {showPending && <PendingGalleryBadge />}
               </Link>
             </li>
           );
@@ -336,6 +340,29 @@ export default function DashboardShell({
         .sidebar-link--active {
           background: var(--color-accent-soft);
           color: var(--color-accent);
+        }
+
+        /* Badge jumlah foto menunggu moderasi — MAINTENANCE notifikasi galeri */
+        .sidebar-link {
+          position: relative;
+        }
+        .gallery-pending-badge {
+          margin-left: auto;
+          min-width: 1.25rem;
+          height: 1.25rem;
+          padding: 0 0.375rem;
+          border-radius: 999px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 0.6875rem;
+          font-weight: 700;
+          background: var(--color-accent);
+          color: #050b14;
+          line-height: 1;
+        }
+        .gallery-pending-badge--hidden {
+          display: none;
         }
 
         .sidebar-footer {
