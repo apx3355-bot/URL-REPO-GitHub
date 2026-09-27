@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { BrandMark, MessageIcon, CalendarPlusIcon } from "@/components/Icons";
 import AvatarDisplay from "@/components/AvatarDisplay";
@@ -94,6 +94,17 @@ export default function DashboardShell({
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const menu = MENUS[user.role] ?? MENUS.ANGGOTA;
 
+  // Kunci scroll body saat drawer mobile terbuka — cegah scroll-through
+  // halaman di belakang drawer (Android).
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [sidebarOpen]);
+
   async function handleLogout() {
     setLoggingOut(true);
     try {
@@ -104,15 +115,44 @@ export default function DashboardShell({
     }
   }
 
+  // Root "/" & "/dashboard" exact-match — tanpa ini "Beranda" ikut aktif
+  // di SEMUA halaman (startsWith("/") selalu true) dan indikator drawer ganda.
   const isActive = (href: string) =>
-    href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(href);
+    href === "/" || href === "/dashboard"
+      ? pathname === href
+      : pathname.startsWith(href);
 
-  const sidebar = (
+  // Sidebar bersama desktop & drawer mobile. Desktop: brand di atas.
+  // Mobile: header identitas user (foto, nama, role) + tombol tutup.
+  const renderSidebar = (opts?: { mobile?: boolean }) => {
+    const mobile = !!opts?.mobile;
+    return (
     <nav className="sidebar-nav" aria-label="Navigasi dashboard">
-      <div className="sidebar-brand">
-        <BrandMark size={30} />
-        <span className="sidebar-brand-text">X TKJ BK</span>
-      </div>
+      {mobile ? (
+        <div className="sidebar-user">
+          <AvatarDisplay name={user.fullName} photo={user.photo} size="md" />
+          <div className="sidebar-user-id">
+            <span className="sidebar-user-name">{user.fullName}</span>
+            <span className={`topbar-role topbar-role--${user.role.toLowerCase()}`}>
+              {roleLabel}
+            </span>
+          </div>
+          <button
+            className="sidebar-close"
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Tutup menu"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      ) : (
+        <div className="sidebar-brand">
+          <BrandMark size={30} />
+          <span className="sidebar-brand-text">X TKJ BK</span>
+        </div>
+      )}
       <ul className="sidebar-menu">
         {menu.map((item) => {
           const Icon = item.icon;
@@ -145,7 +185,8 @@ export default function DashboardShell({
         </button>
       </div>
     </nav>
-  );
+    );
+  };
 
   return (
     <div className="shell">
@@ -156,17 +197,18 @@ export default function DashboardShell({
       )}
 
       {/* Sidebar desktop */}
-      <aside className="sidebar">{sidebar}</aside>
+      <aside className="sidebar">{renderSidebar()}</aside>
 
       {/* Drawer mobile */}
       {sidebarOpen && (
         <div className="drawer-overlay" onClick={() => setSidebarOpen(false)}>
           <aside
+            id="mobile-drawer"
             className="sidebar sidebar--mobile"
             onClick={(e) => e.stopPropagation()}
             aria-label="Menu dashboard"
           >
-            {sidebar}
+            {renderSidebar({ mobile: true })}
           </aside>
         </div>
       )}
@@ -177,6 +219,8 @@ export default function DashboardShell({
             className="topbar-menu-btn"
             onClick={() => setSidebarOpen(true)}
             aria-label="Buka menu"
+            aria-expanded={sidebarOpen}
+            aria-controls="mobile-drawer"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
               <path d="M3 6h18M3 12h18M3 18h18" />
@@ -417,8 +461,8 @@ export default function DashboardShell({
           display: flex;
           align-items: center;
           justify-content: center;
-          width: 34px;
-          height: 34px;
+          width: 40px; /* target sentuh Android */
+          height: 40px;
           border: 1px solid var(--color-border);
           border-radius: var(--radius-sm);
           color: var(--color-text-muted);
@@ -587,6 +631,12 @@ export default function DashboardShell({
           inset: 0;
           background: rgba(0,0,0,0.5);
           z-index: 200;
+          /* fade ringan; jika timeline macet, overlay tetap ada & bisa diklik */
+          animation: fadeIn 0.15s ease;
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; }
         }
 
         .sidebar--mobile {
@@ -595,12 +645,70 @@ export default function DashboardShell({
           top: 0;
           bottom: 0;
           z-index: 201;
-          animation: slideIn 0.18s ease;
+          /* KRITIS 1: rule .sidebar di atas men-set display:none di <900px
+             (menyembunyikan sidebar desktop), drawer harus di-re-enable —
+             tanpa ini panel drawer muncul "kosong" di Android */
+          display: flex;
+          /* KRITIS 2: panel TIDAK dianimasikan translate — drawer yang
+             tergantung animasi selesai untuk terlihat rapuh (timeline
+             bisa tertunda di renderer lambat). Panel muncul instan,
+             animasi ringan hanya fade overlay di bawah. */
+          width: min(280px, 82vw);
+          border-right: 1px solid var(--color-border);
+          box-shadow: var(--shadow-lg, 0 12px 40px rgba(0,0,0,0.45));
         }
 
-        @keyframes slideIn {
-          from { transform: translateX(-100%); }
-          to { transform: translateX(0); }
+        @media (prefers-reduced-motion: reduce) {
+          .drawer-overlay {
+            animation: none;
+          }
+        }
+
+        /* Header identitas user di drawer mobile (foto + nama + role + close) */
+        .sidebar-user {
+          display: flex;
+          align-items: center;
+          gap: 0.625rem;
+          padding: 0.25rem 0.25rem 1rem;
+          border-bottom: 1px solid rgba(248,250,252,0.1);
+          margin-bottom: 0.75rem;
+        }
+
+        .sidebar-user-id {
+          display: flex;
+          flex-direction: column;
+          gap: 0.25rem;
+          min-width: 0;
+          flex: 1;
+        }
+
+        .sidebar-user-name {
+          font-size: 0.82rem;
+          font-weight: 600;
+          color: var(--color-on-brand);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .sidebar-close {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 40px;
+          height: 40px;
+          flex-shrink: 0;
+          border: 1px solid rgba(248,250,252,0.15);
+          border-radius: var(--radius-sm);
+          background: transparent;
+          color: rgba(248,250,252,0.75);
+          cursor: pointer;
+          transition: background 0.15s, color 0.15s;
+        }
+
+        .sidebar-close:hover {
+          background: rgba(248,250,252,0.08);
+          color: var(--color-on-brand);
         }
 
         @media (min-width: 900px) {
@@ -616,6 +724,27 @@ export default function DashboardShell({
         @media (max-width: 899px) {
           .sidebar {
             display: none;
+          }
+
+          /* Drawer mobile tetap tampil — rule ini HARUS datang setelah
+             .sidebar di atas (specificity sama, urutan menang) */
+          .sidebar--mobile {
+            display: flex;
+          }
+
+          /* Item menu enak disentuh di Android (min 44px) */
+          .sidebar-link {
+            min-height: 44px;
+            font-size: 0.875rem;
+          }
+
+          .sidebar-logout {
+            min-height: 44px;
+          }
+
+          /* Ruang aman gesture bar iPhone + notch Android */
+          .sidebar--mobile .sidebar-nav {
+            padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
           }
         }
 
