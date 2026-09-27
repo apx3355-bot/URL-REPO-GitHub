@@ -17,7 +17,7 @@ export async function GET(request: Request) {
       ...(onlyUnread ? { isRead: false } : {}),
     };
 
-    const [notifications, unreadCount] = await Promise.all([
+    const [notifications, unreadCount, unreadByType] = await Promise.all([
       prisma.notification.findMany({
         where,
         orderBy: { createdAt: "desc" },
@@ -26,9 +26,16 @@ export async function GET(request: Request) {
       prisma.notification.count({
         where: { userId: guard.user.id, isRead: false },
       }),
+      // Jumlah belum dibaca per tipe — untuk badge pada item menu drawer
+      // (ANNOUNCEMENT -> Pengumuman, SUBMISSION+ASSIGNMENT -> Tugas, dst.)
+      prisma.notification.groupBy({
+        by: ["type"],
+        where: { userId: guard.user.id, isRead: false },
+        _count: { _all: true },
+      }),
     ]);
 
-    return NextResponse.json({ notifications, unreadCount });
+    return NextResponse.json({ notifications, unreadCount, unreadByType });
   } catch (error) {
     return handleApiError(error, "notifications:list");
   }

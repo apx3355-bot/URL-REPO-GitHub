@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { BrandMark, MessageIcon, CalendarPlusIcon } from "@/components/Icons";
 import AvatarDisplay from "@/components/AvatarDisplay";
@@ -22,6 +22,7 @@ import {
 } from "@/components/Icons";
 import type { SessionUser } from "@/lib/session";
 import PendingGalleryBadge from "@/components/PendingGalleryBadge";
+import MenuUnreadBadge, { setDrawerTicker } from "@/components/MenuUnreadBadge";
 
 interface NavItem {
   href: string;
@@ -78,6 +79,17 @@ const MENUS: Record<string, NavItem[]> = {
   ],
 };
 
+// Item drawer yang diberi badge jumlah notifikasi belum dibaca (per tipe).
+// HANYA drawer mobile; sidebar desktop tidak diberi badge. GALLERY sengaja
+// tanpa mapping — moderator memakai PendingGalleryBadge di item Galeri.
+const MENU_BADGE_TYPES: Record<string, string[]> = {
+  "/dashboard/announcements": ["ANNOUNCEMENT"],
+  "/dashboard/tugas": ["ASSIGNMENT", "SUBMISSION"],
+  "/dashboard/materi": ["MATERIAL"],
+  "/dashboard/agenda": ["EVENT"],
+  "/dashboard/schedules": ["SCHEDULE"],
+};
+
 export default function DashboardShell({
   user,
   roleLabel,
@@ -94,6 +106,68 @@ export default function DashboardShell({
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const menu = MENUS[user.role] ?? MENUS.ANGGOTA;
 
+  // ===== Gesture swipe-to-left: tutup drawer seperti aplikasi native =====
+  // Saat drag, panel & scrim mengikuti jari (drag-follow). Lepas di >40%
+  // lebar panel atau flick cepat = tutup; selain itu kembali terbuka
+  // (spring back via transition CSS). Gestur vertikal (scroll menu) tidak
+  // diganggu: axis-lock 8px, dan touch-action: pan-y biarkan browser
+  // men-scroll daftar secara native.
+  const [dragX, setDragX] = useState<number | null>(null); // null = idle; number = px offset saat drag
+  const drawerRef = useRef<HTMLElement | null>(null);
+  const dragXRef = useRef(0); // mirror untuk handler touchend (hindari stale closure)
+  const gesture = useRef<{
+    startX: number;
+    startY: number;
+    lastX: number;
+    lastT: number;
+    vx: number; // px/ms, tanda = arah
+    locked: null | "h" | "v";
+  } | null>(null);
+
+  const drawerWidth = () => drawerRef.current?.offsetWidth ?? 280;
+
+  function onDrawerTouchStart(e: React.TouchEvent) {
+    if (e.touches.length !== 1) return;
+    const t = e.touches[0];
+    gesture.current = { startX: t.clientX, startY: t.clientY, lastX: t.clientX, lastT: performance.now(), vx: 0, locked: null };
+  }
+
+  function onDrawerTouchMove(e: React.TouchEvent) {
+    const g = gesture.current;
+    if (!g || g.locked === "v") return;
+    const t = e.touches[0];
+    const dx = t.clientX - g.startX;
+    const dy = t.clientY - g.startY;
+    if (g.locked === null) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      g.locked = Math.abs(dx) > Math.abs(dy) ? "h" : "v";
+      if (g.locked === "v") return; // scroll menu — serahkan ke browser
+    }
+    // Horizontal: panel mengikuti jari, clamp [ -lebar, 0 ]
+    const x = Math.max(-drawerWidth(), Math.min(0, dx));
+    dragXRef.current = x;
+    setDragX(x);
+    const now = performance.now();
+    const dt = now - g.lastT;
+    if (dt > 0) {
+      g.vx = (t.clientX - g.lastX) / dt;
+      g.lastX = t.clientX;
+      g.lastT = now;
+    }
+  }
+
+  function onDrawerTouchEnd() {
+    const g = gesture.current;
+    gesture.current = null;
+    if (!g || g.locked !== "h") {
+      setDragX(null);
+      return;
+    }
+    const shouldClose = g.vx < -0.5 || Math.abs(dragXRef.current) > drawerWidth() * 0.4;
+    setDragX(null); // hapus inline style — tutup: unmount tanpa flash; lainnya: spring back via transition
+    if (shouldClose) setSidebarOpen(false);
+  }
+
   // Kunci scroll body saat drawer mobile terbuka — cegah scroll-through
   // halaman di belakang drawer (Android).
   useEffect(() => {
@@ -103,6 +177,13 @@ export default function DashboardShell({
     return () => {
       document.body.style.overflow = prev;
     };
+  }, [sidebarOpen]);
+
+  // Badge unread per item drawer: refresh saat drawer dibuka + ticker 60s
+  // hanya selama drawer terbuka; berhenti total saat tertutup (jalur tutup
+  // mana pun — overlay, X, item menu, swipe — lewat state ini).
+  useEffect(() => {
+    setDrawerTicker(sidebarOpen);
   }, [sidebarOpen]);
 
   async function handleLogout() {
@@ -169,6 +250,10 @@ export default function DashboardShell({
                 <Icon size={15} />
                 {item.label}
                 {showPending && <PendingGalleryBadge />}
+                {mobile &&
+                  (MENU_BADGE_TYPES[item.href] ?? []).map((t) => (
+                    <MenuUnreadBadge key={t} type={t} />
+                  ))}
               </Link>
             </li>
           );
@@ -201,12 +286,26 @@ export default function DashboardShell({
 
       {/* Drawer mobile */}
       {sidebarOpen && (
-        <div className="drawer-overlay" onClick={() => setSidebarOpen(false)}>
+        <div
+          className="drawer-overlay"
+          onClick={() => setSidebarOpen(false)}
+          style={
+            dragX !== null
+              ? { opacity: String(Math.max(0, 0.5 * (1 + dragX / drawerWidth()))) }
+              : undefined
+          }
+        >
           <aside
             id="mobile-drawer"
+            ref={drawerRef}
             className="sidebar sidebar--mobile"
+            onTouchStart={onDrawerTouchStart}
+            onTouchMove={onDrawerTouchMove}
+            onTouchEnd={onDrawerTouchEnd}
+            onTouchCancel={onDrawerTouchEnd}
             onClick={(e) => e.stopPropagation()}
             aria-label="Menu dashboard"
+            style={dragX !== null ? { transform: `translateX(${dragX}px)`, transition: "none" } : undefined}
           >
             {renderSidebar({ mobile: true })}
           </aside>
@@ -217,7 +316,10 @@ export default function DashboardShell({
         <header className="topbar">
           <button
             className="topbar-menu-btn"
-            onClick={() => setSidebarOpen(true)}
+            onClick={() => {
+              setDragX(null); // reset gesture sebelumnya agar drawer selalu terbuka penuh
+              setSidebarOpen(true);
+            }}
             aria-label="Buka menu"
             aria-expanded={sidebarOpen}
             aria-controls="mobile-drawer"
@@ -227,9 +329,10 @@ export default function DashboardShell({
             </svg>
           </button>
           <div className="topbar-actions">
-            {/* Bell notifikasi khusus moderator (Wali Kelas & Developer) —
-                murid tidak punya antrian moderasi, jadi tidak diberi bell */}
-            {user.role !== "ANGGOTA" && <NotificationBell />}
+            {/* Bell untuk SEMUA role: murid juga menerima notifikasi
+                (pengumuman, hasil moderasi galeri) dan harus bisa
+                menandainya dibaca — badge drawer menunjukkan unread-nya. */}
+            <NotificationBell />
           </div>
           <div className="topbar-user">
             <button
@@ -409,6 +512,24 @@ export default function DashboardShell({
         }
         .gallery-pending-badge--hidden {
           display: none;
+        }
+
+        /* Badge notifikasi belum dibaca di item drawer — merah (alert),
+           dibedakan dari pending galeri yang berwarna accent */
+        .menu-unread-badge {
+          margin-left: auto;
+          min-width: 1.125rem;
+          height: 1.125rem;
+          padding: 0 0.3125rem;
+          border-radius: 999px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 0.625rem;
+          font-weight: 700;
+          background: var(--color-danger);
+          color: #fff;
+          line-height: 1;
         }
 
         .sidebar-footer {
@@ -651,18 +772,30 @@ export default function DashboardShell({
              (menyembunyikan sidebar desktop), drawer harus di-re-enable —
              tanpa ini panel drawer muncul "kosong" di Android */
           display: flex;
-          /* KRITIS 2: panel TIDAK dianimasikan translate — drawer yang
-             tergantung animasi selesai untuk terlihat rapuh (timeline
-             bisa tertunda di renderer lambat). Panel muncul instan,
-             animasi ringan hanya fade overlay di bawah. */
+          /* KRITIS 2: panel TIDAK dianimasikan keyframes translate — drawer
+             yang tergantung animasi selesai untuk terlihat rapuh (timeline
+             bisa tertunda di renderer lambat). Panel muncul instan saat
+             buka & tertutup instan saat unmount; transition transform di
+             bawah hanya untuk spring-back gesture (bukan keberadaan). */
           width: min(280px, 82vw);
           border-right: 1px solid var(--color-border);
           box-shadow: var(--shadow-lg, 0 12px 40px rgba(0,0,0,0.45));
+          /* Spring back saat swipe dilepas sebelum threshold. Saat drag,
+             inline transition:none menonaktifkan ini agar mengikuti jari
+             1:1; saat buka (mount) & tutup (unmount) tidak bertransisi. */
+          transition: transform 0.18s ease;
+          /* Scroll vertikal daftar menu tetap native; drag horizontal
+             milik gesture tutup drawer (axis-lock 8px di JS). */
+          touch-action: pan-y;
         }
 
         @media (prefers-reduced-motion: reduce) {
           .drawer-overlay {
             animation: none;
+          }
+
+          .sidebar--mobile {
+            transition: none;
           }
         }
 
