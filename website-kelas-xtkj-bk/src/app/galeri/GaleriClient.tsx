@@ -3,6 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import PhotoImg from "@/components/home/PhotoImg";
+import {
+  validateGalleryFile,
+  resolveUploadError,
+  networkErrorMessage,
+} from "@/lib/galleryUpload";
 import type { GalleryCategory, GalleryItem } from "@/types";
 
 const ALL = "Semua";
@@ -192,6 +197,12 @@ export default function GaleriClient({
   async function handleUpload(e: React.FormEvent) {
     e.preventDefault();
     if (!uploadFile) return;
+    // Pre-check client: format/ukuran ditolak sebelum kirim (pesan spesifik)
+    const precheck = validateGalleryFile(uploadFile);
+    if (precheck) {
+      setUploadMsg({ ok: false, text: precheck });
+      return;
+    }
     setUploading(true);
     setUploadMsg(null);
     try {
@@ -200,18 +211,19 @@ export default function GaleriClient({
       fd.append("title", uploadTitle);
       fd.append("description", uploadDesc);
       const res = await fetch("/api/gallery", { method: "POST", body: fd });
-      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setUploadMsg({ ok: false, text: data.fields?.file || data.fields?.title || data.error || "Upload gagal." });
+        const text = await resolveUploadError(res, "Upload gagal.");
+        setUploadMsg({ ok: false, text });
         return;
       }
+      await res.json().catch(() => ({}));
       setUploadMsg({ ok: true, text: "Foto terkirim! Tampil publik setelah disetujui moderator." });
       setUploadFile(null);
       setUploadTitle("");
       setUploadDesc("");
       if (uploadInputRef.current) uploadInputRef.current.value = "";
-    } catch {
-      setUploadMsg({ ok: false, text: "Tidak dapat terhubung ke server." });
+    } catch (err) {
+      setUploadMsg({ ok: false, text: networkErrorMessage(err) });
     } finally {
       setUploading(false);
     }

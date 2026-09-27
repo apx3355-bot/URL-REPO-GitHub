@@ -70,8 +70,13 @@ export async function POST(request: Request) {
       return jsonError("Data tidak valid.", 400, { description: "Deskripsi maksimal 300 karakter." });
     }
 
-    // 1. Ukuran
-    if (file.size === 0 || file.size > MAX_UPLOAD_BYTES) {
+    // 1. Ukuran (file kosong diberi pesan khusus agar tidak menyesatkan)
+    if (file.size === 0) {
+      return jsonError("File kosong. Pilih foto yang utuh.", 400, {
+        file: "File kosong. Pilih foto yang utuh.",
+      });
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
       return jsonError("Ukuran file maksimal 5 MB.", 400, { file: "Ukuran file maksimal 5 MB." });
     }
 

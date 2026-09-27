@@ -2,6 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DashCSS } from "@/components/dashboard/SharedUI";
+import {
+  validateGalleryFile,
+  resolveUploadError,
+  networkErrorMessage,
+} from "@/lib/galleryUpload";
 
 interface GalleryItem {
   id: number;
@@ -103,6 +108,18 @@ export default function GalleryPage() {
 
   function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
+    // Pre-check client: format/ukuran ditolak saat memilih (pesan spesifik)
+    if (file) {
+      const precheck = validateGalleryFile(file);
+      if (precheck) {
+        setError(precheck);
+        e.target.value = "";
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+        setPreviewUrl(null);
+        return;
+      }
+    }
+    setError(null);
     setSelectedFile(file);
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(file ? URL.createObjectURL(file) : null);
@@ -122,11 +139,11 @@ export default function GalleryPage() {
       fd.append("title", form.title);
       fd.append("description", form.description);
       const res = await fetch("/api/gallery", { method: "POST", body: fd });
-      const data = await res.json();
       if (!res.ok) {
-        setError(data.fields?.file || data.error || "Upload gagal.");
+        setError(await resolveUploadError(res, "Upload gagal."));
         return;
       }
+      await res.json().catch(() => ({}));
       setSuccess("Foto terkirim dan menunggu moderasi.");
       setShowUpload(false);
       setForm({ title: "", description: "" });
@@ -134,8 +151,8 @@ export default function GalleryPage() {
       setPreviewUrl(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
       load();
-    } catch {
-      setError("Tidak dapat terhubung ke server.");
+    } catch (err) {
+      setError(networkErrorMessage(err));
     } finally {
       setUploading(false);
     }
