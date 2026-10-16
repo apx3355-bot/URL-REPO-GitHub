@@ -428,10 +428,10 @@ export default function DashboardShell({
 
         /* SIDEBAR */
         .sidebar {
-          width: 232px;
+          width: 240px;
           flex-shrink: 0;
           background: var(--color-brand);
-          border-right: 1px solid var(--color-border);
+          border-right: 1px solid rgba(248,250,252,0.06);
           position: sticky;
           top: 0;
           height: 100vh;
@@ -443,21 +443,21 @@ export default function DashboardShell({
           display: flex;
           flex-direction: column;
           height: 100%;
-          padding: 1rem 0.75rem;
+          padding: 1.25rem 0.875rem;
           overflow-y: auto;
         }
 
         .sidebar-brand {
           display: flex;
           align-items: center;
-          gap: 0.5rem;
-          padding: 0.25rem 0.5rem 1.25rem;
+          gap: 0.625rem;
+          padding: 0.25rem 0.625rem 1.5rem;
         }
 
         .sidebar-brand-text {
           font-size: 0.78rem;
-          font-weight: 700;
-          letter-spacing: 0.06em;
+          font-weight: 800;
+          letter-spacing: 0.08em;
           color: var(--color-on-brand);
           text-transform: uppercase;
         }
@@ -473,22 +473,29 @@ export default function DashboardShell({
         .sidebar-link {
           display: flex;
           align-items: center;
-          gap: 0.625rem;
-          padding: 0.5rem 0.75rem;
-          border-radius: var(--radius-sm);
-          font-size: 0.82rem;
-          color: rgba(248,250,252,0.65);
+          gap: 0.75rem;
+          padding: 0.5625rem 0.875rem;
+          border-radius: var(--radius-md);
+          font-size: 0.815rem;
+          font-weight: 500;
+          color: rgba(248,250,252,0.5);
           transition: background 0.15s, color 0.15s;
+          letter-spacing: 0.01em;
         }
 
         .sidebar-link:hover {
-          background: rgba(248,250,252,0.06);
-          color: var(--color-on-brand);
+          background: rgba(248,250,252,0.07);
+          color: rgba(248,250,252,0.9);
         }
 
         .sidebar-link--active {
-          background: var(--color-accent-soft);
-          color: var(--color-accent);
+          background: rgba(6,182,212,0.12);
+          color: #06b6d4;
+          font-weight: 600;
+        }
+
+        .sidebar-link--active svg {
+          color: #06b6d4;
         }
 
         /* Badge jumlah foto menunggu moderasi — MAINTENANCE notifikasi galeri */
@@ -504,9 +511,9 @@ export default function DashboardShell({
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          font-size: 0.6875rem;
-          font-weight: 700;
-          background: var(--color-accent);
+          font-size: 0.6rem;
+          font-weight: 800;
+          background: #06b6d4;
           color: #050b14;
           line-height: 1;
         }
@@ -525,8 +532,8 @@ export default function DashboardShell({
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          font-size: 0.625rem;
-          font-weight: 700;
+          font-size: 0.6rem;
+          font-weight: 800;
           background: var(--color-danger);
           color: #fff;
           line-height: 1;
@@ -536,25 +543,25 @@ export default function DashboardShell({
           display: flex;
           flex-direction: column;
           gap: 0.5rem;
-          padding-top: 0.75rem;
-          border-top: 1px solid rgba(248,250,252,0.08);
+          padding-top: 0.875rem;
+          border-top: 1px solid rgba(248,250,252,0.07);
         }
 
         .sidebar-logout {
           font-size: 0.78rem;
-          font-weight: 550;
-          padding: 0.4375rem 0.75rem;
-          border: 1px solid rgba(248,250,252,0.15);
-          border-radius: var(--radius-sm);
-          color: rgba(248,250,252,0.75);
+          font-weight: 600;
+          padding: 0.5rem 0.875rem;
+          border: 1px solid rgba(248,250,252,0.12);
+          border-radius: var(--radius-md);
+          color: rgba(248,250,252,0.6);
           background: transparent;
-          transition: background 0.15s, color 0.15s;
+          transition: background 0.15s, color 0.15s, border-color 0.15s;
         }
 
         .sidebar-logout:hover {
-          background: var(--color-danger-soft);
-          color: var(--color-danger);
-          border-color: var(--color-danger);
+          background: rgba(239,68,68,0.12);
+          color: #ef4444;
+          border-color: rgba(239,68,68,0.4);
         }
 
         /* MAIN */
@@ -572,11 +579,12 @@ export default function DashboardShell({
           display: flex;
           align-items: center;
           justify-content: flex-end;
-          gap: 1rem;
-          height: 52px;
-          padding: 0 1.25rem;
+          gap: 0.75rem;
+          height: 56px;
+          padding: 0 1.5rem;
           background: var(--color-navbar);
-          backdrop-filter: blur(10px);
+          backdrop-filter: blur(16px);
+          -webkit-backdrop-filter: blur(16px);
           border-bottom: 1px solid var(--color-border);
         }
 
@@ -587,14 +595,16 @@ export default function DashboardShell({
           width: 40px; /* target sentuh Android */
           height: 40px;
           border: 1px solid var(--color-border);
-          border-radius: var(--radius-sm);
+          border-radius: var(--radius-md);
           color: var(--color-text-muted);
           margin-right: auto;
+          transition: color 0.15s, border-color 0.15s, background 0.15s;
         }
 
         .topbar-menu-btn:hover {
           color: var(--color-accent);
-          border-color: var(--color-accent);
+          border-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
+          background: var(--color-accent-soft);
         }
 
         .topbar-actions {
@@ -621,8 +631,8 @@ export default function DashboardShell({
           align-items: center;
           gap: 0.625rem;
           min-width: 0;
-          padding: 0.25rem 0.375rem;
-          border-radius: var(--radius-sm);
+          padding: 0.3125rem 0.5rem;
+          border-radius: var(--radius-md);
           background: transparent;
           border: 1px solid transparent;
           cursor: pointer;
@@ -632,7 +642,7 @@ export default function DashboardShell({
         .topbar-user-btn:hover,
         .topbar-user-btn[aria-expanded="true"] {
           border-color: var(--color-border);
-          background: rgba(148,163,184,0.06);
+          background: var(--color-surface);
         }
 
         .user-menu-overlay {
@@ -646,25 +656,25 @@ export default function DashboardShell({
           top: calc(100% + 0.5rem);
           right: 0;
           z-index: 160;
-          width: 230px;
+          width: 240px;
           background: var(--color-surface);
           border: 1px solid var(--color-border);
-          border-radius: var(--radius-md);
-          box-shadow: var(--shadow-lg, 0 12px 40px rgba(0,0,0,0.45));
+          border-radius: var(--radius-lg);
+          box-shadow: var(--shadow-lg);
           padding: 0.5rem;
-          animation: userMenuIn 0.15s ease;
+          animation: userMenuIn 0.15s cubic-bezier(0.34,1.56,0.64,1);
         }
 
         @keyframes userMenuIn {
-          from { opacity: 0; transform: translateY(-4px); }
-          to { opacity: 1; transform: translateY(0); }
+          from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
         }
 
         .user-menu-header {
           display: flex;
           align-items: center;
           gap: 0.625rem;
-          padding: 0.5rem 0.5rem 0.75rem;
+          padding: 0.625rem 0.625rem 0.875rem;
           border-bottom: 1px solid var(--color-border-light);
           margin-bottom: 0.375rem;
         }
@@ -676,18 +686,20 @@ export default function DashboardShell({
         }
 
         .user-menu-name {
-          font-size: 0.8rem;
-          font-weight: 600;
+          font-size: 0.82rem;
+          font-weight: 700;
           color: var(--color-text);
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          letter-spacing: -0.01em;
         }
 
         .user-menu-username {
           font-family: var(--font-mono);
           font-size: 0.68rem;
           color: var(--color-text-subtle);
+          margin-top: 0.125rem;
         }
 
         .user-menu-item {
@@ -708,7 +720,7 @@ export default function DashboardShell({
         }
 
         .user-menu-item:hover {
-          background: rgba(148,163,184,0.08);
+          background: var(--color-surface-hover);
           color: var(--color-text);
         }
 
@@ -724,13 +736,14 @@ export default function DashboardShell({
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          letter-spacing: -0.01em;
         }
 
         .topbar-role {
-          font-size: 0.62rem;
-          font-weight: 600;
+          font-size: 0.6rem;
+          font-weight: 700;
           text-transform: uppercase;
-          letter-spacing: 0.07em;
+          letter-spacing: 0.09em;
           padding: 0.1875rem 0.5rem;
           border-radius: 999px;
           white-space: nowrap;
@@ -742,8 +755,8 @@ export default function DashboardShell({
 
         .shell-content {
           flex: 1;
-          padding: 1.75rem 1.25rem 3.5rem;
-          max-width: 1160px;
+          padding: 2rem 1.5rem 4rem;
+          max-width: 1200px;
           width: 100%;
           margin: 0 auto;
         }
@@ -752,7 +765,8 @@ export default function DashboardShell({
         .drawer-overlay {
           position: fixed;
           inset: 0;
-          background: rgba(0,0,0,0.5);
+          background: rgba(0,0,0,0.6);
+          backdrop-filter: blur(2px);
           z-index: 200;
           /* fade ringan; jika timeline macet, overlay tetap ada & bisa diklik */
           animation: fadeIn 0.15s ease;
@@ -778,12 +792,12 @@ export default function DashboardShell({
              buka & tertutup instan saat unmount; transition transform di
              bawah hanya untuk spring-back gesture (bukan keberadaan). */
           width: min(280px, 82vw);
-          border-right: 1px solid var(--color-border);
-          box-shadow: var(--shadow-lg, 0 12px 40px rgba(0,0,0,0.45));
+          border-right: 1px solid rgba(248,250,252,0.06);
+          box-shadow: 0 0 60px rgba(0,0,0,0.7), inset -1px 0 0 rgba(255,255,255,0.04);
           /* Spring back saat swipe dilepas sebelum threshold. Saat drag,
              inline transition:none menonaktifkan ini agar mengikuti jari
              1:1; saat buka (mount) & tutup (unmount) tidak bertransisi. */
-          transition: transform 0.18s ease;
+          transition: transform 0.2s cubic-bezier(0.4,0,0.2,1);
           /* Scroll vertikal daftar menu tetap native; drag horizontal
              milik gesture tutup drawer (axis-lock 8px di JS). */
           touch-action: pan-y;
